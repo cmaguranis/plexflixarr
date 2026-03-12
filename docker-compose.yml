@@ -1,0 +1,73 @@
+services:
+
+  # ── plundarr ────────────────────────────────────────────────────────────────
+  # The ingestion engine. Run `docker compose run --rm plundarr` manually
+  # or trigger via a host cron job:
+  #   0 2 * * * docker compose -f /path/to/docker-compose.yml run --rm plundarr
+  # The cleanup entry point is invoked directly by Tautulli via the `cleanup` script.
+  plundarr:
+    build: .
+    container_name: plundarr
+    env_file: .env
+    stop_grace_period: 20s
+    volumes:
+      # Dummy template used when copying files into the discover libraries
+      - ./assets:/app/assets
+      # Media paths must match the values in .env
+      - /media:/media
+    restart: "no"  # Runs to completion; use cron rather than always-on
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "7"
+    cpu_shares: 512
+
+  # ── Kometa ──────────────────────────────────────────────────────────────────
+  # Reads Plex labels applied by the ingest script and builds Smart Collections.
+  # After initial setup, schedule runs via KOMETA_TIME or a cron entry.
+  kometa:
+    image: kometateam/kometa:latest
+    container_name: kometa
+    stop_grace_period: 20s
+    environment:
+      - TZ=America/New_York
+      # Run once immediately on container start (useful for testing).
+      # Remove this line and set KOMETA_TIME for scheduled runs.
+      - KOMETA_RUN=true
+    volumes:
+      # kometa-config/ in this repo maps to /config inside the container.
+      # Update kometa-config/config.yml with your Plex URL and token before starting.
+      - ./kometa-config:/config
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "7"
+    cpu_shares: 512
+
+  # ── PlexTraktSync ────────────────────────────────────────────────────────────
+  # Syncs your Plex watch history to Trakt so Couchmoney can generate
+  # personalised recommendations used by the ingest script.
+  # Run the auth wizard once after first start:
+  #   docker exec -it plextraktsync plextraktsync
+  plextraktsync:
+    image: lscr.io/linuxserver/plextraktsync:latest
+    container_name: plextraktsync
+    stop_grace_period: 20s
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      # Persists Trakt OAuth tokens and config across container restarts.
+      # Edit ./plextraktsync/config/config.yml to restrict to real libraries only.
+      - ./plextraktsync/config:/config
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "7"
+    cpu_shares: 512

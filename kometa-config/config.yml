@@ -1,0 +1,26 @@
+# Kometa main configuration.
+# This file connects Kometa to Plex and points each discovery library
+# at the collection/overlay definitions in discovery_ui.yml.
+# No Trakt, MDBList, or Radarr/Sonarr keys are needed here — the Python
+# ingestion script handles all data fetching and dummy file management.
+
+libraries:
+  Discover Movies:
+    metadata_path:
+      - file: config/discovery_ui.yml
+  Discover Shows:
+    metadata_path:
+      - file: config/discovery_ui.yml
+
+settings:
+  cache: true
+  cache_expiration: 6
+  # Kometa resolves overlay PNGs relative to this directory.
+  # Place request_needed_icon.png at kometa-config/assets/overlays/
+  asset_directory: config/assets
+  sync_mode: sync
+
+plex:
+  url: http://YOUR_PLEX_IP:32400  # replace with your Plex server address
+  token: YOUR_PLEX_TOKEN          # replace with your Plex token
+  timeout: 60

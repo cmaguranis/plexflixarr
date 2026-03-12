@@ -1,0 +1,59 @@
+# Kometa collection and overlay definitions for the discovery libraries.
+#
+# The Python ingestion script creates dummy media files and applies Plex labels
+# (e.g. Discover_Netflix, Discover_Recs). Kometa reads those labels here and
+# builds Smart Collections pinned to the Plex home screen.
+#
+# No add_missing flags are used. Kometa's job is purely visual — it does not
+# trigger any downloads. All library population is handled by the ingest script.
+
+templates:
+  discovery_row:
+    # Smart Collection scoped to a single Plex label applied by the ingest script.
+    # user_watched: false hides items the user has already watched — secondary failsafe
+    # on top of the MDBList quality gate in the ingestion pipeline.
+    smart_filter:
+      all:
+        label: <<label_name>>
+        user_watched: false
+    sort_title: <<sort_prefix>>_<<collection_name>>
+    sync_mode: sync
+    # Pins this collection as a horizontal row on the Plex home screen.
+    visible_home: true
+    limit: 40
+
+collections:
+  # Items labelled Coming_Soon are queued in Radarr/Sonarr but not yet downloaded.
+  Coming Soon (Requested):
+    template: {name: discovery_row, label_name: Coming_Soon, sort_prefix: 00}
+    summary: Media currently queued in Radarr and Sonarr awaiting release or download.
+
+  Recommended for Me:
+    template: {name: discovery_row, label_name: Discover_Recs, sort_prefix: 01}
+    summary: Personalised Couchmoney recommendations based on your watch history.
+
+  Trending on Netflix:
+    template: {name: discovery_row, label_name: Discover_Netflix, sort_prefix: 02}
+
+  Trending on Apple TV+:
+    template: {name: discovery_row, label_name: Discover_AppleTV, sort_prefix: 03}
+
+  Trending on Max:
+    template: {name: discovery_row, label_name: Discover_Max, sort_prefix: 04}
+
+  Trending on Hulu:
+    template: {name: discovery_row, label_name: Discover_Hulu, sort_prefix: 05}
+
+overlays:
+  # Applies a badge to every dummy file poster so it's visually distinct from real media.
+  # The PNG must exist at: kometa-config/assets/overlays/request_needed_icon.png
+  # Use a transparent PNG with your preferred "request needed" badge design.
+  Request Needed Badge:
+    overlay:
+      name: request_needed_icon
+      group: topleft
+      weight: 100
+    plex_search:
+      any:
+        # Matches everything tagged by the ingestion script across all discovery rows.
+        label: Discover_All

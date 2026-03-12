@@ -7,7 +7,7 @@ Custom streaming service discovery injection into Plex. Browse trending content 
 ## How It Works
 
 ```mermaid
-%%{init: {'theme': 'neutral'}}%%
+%%{init: {'theme': 'dark'}}%%
 flowchart LR
     TMDB["TMDB API"]
     Trakt["Trakt / Couchmoney"]
@@ -312,7 +312,7 @@ Copy `.env.example` to `.env` and fill in all values before running.
 | `DISCOVER_SHOWS_PATH` | Yes | — | Absolute path to discovery shows folder |
 | `REAL_MOVIES_PATH` | Yes | — | Absolute path to real movies library folder |
 | `REAL_SHOWS_PATH` | Yes | — | Absolute path to real shows library folder |
-| `TEMPLATE_FILE` | No | `scripts/dummy_template/dummy.mkv` | Path to 1-second dummy video |
+| `TEMPLATE_FILE` | No | `assets/dummy.mkv` | Path to 1-second dummy video |
 | `PAGES_PER_PROVIDER` | No | `5` | TMDB pages per provider per type (20 items/page) |
 
 ---
@@ -338,9 +338,8 @@ src/
 kometa-config/
   config.yml              Kometa: Plex connection + library mapping
   discovery_ui.yml        Kometa: Smart Collections + overlay badge
-scripts/
-  dummy_template/
-    dummy.mkv             Pre-generated 1-second dummy video template
+assets/
+  dummy.mkv               Pre-generated 1-second dummy video template
 ```
 
 ---

@@ -1,0 +1,30 @@
+[project]
+name = "plundarr"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "plexapi>=4.15",
+    "requests>=2.32",
+    "pydantic-settings>=2.3",
+]
+
+[project.scripts]
+ingest = "src.jobs.ingestion:main"
+cleanup = "src.jobs.cleanup:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-mock>=3.14",
+    "ruff>=0.4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
