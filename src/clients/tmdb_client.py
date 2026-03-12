@@ -9,6 +9,7 @@ from src.config import Settings
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.themoviedb.org/3/discover"
+_TRENDING_URL = "https://api.themoviedb.org/3/trending"
 _WATCH_REGION = "US"
 _REQUEST_DELAY = 0.5  # seconds between TMDB requests
 
@@ -20,6 +21,7 @@ class TmdbItem:
     media_type: str  # 'movie' or 'tv'
     tmdb_id: int
     labels: list[str] = field(default_factory=list)
+    genre_ids: list[int] = field(default_factory=list)
 
 
 class TmdbClient:
@@ -43,17 +45,52 @@ class TmdbClient:
                     for item in items:
                         results.append(
                             TmdbItem(
-                                title=item.get("title") if media_type == "movie"
+                                title=item.get("title")
+                                if media_type == "movie"
                                 else item.get("name", ""),
                                 year=(item.get("release_date", "") or "")[:4]
                                 if media_type == "movie"
                                 else (item.get("first_air_date", "") or "")[:4],
                                 media_type=media_type,
                                 tmdb_id=item["id"],
-                                labels=[label, "Discover_All"],
+                                labels=[label],
+                                genre_ids=item.get("genre_ids", []),
                             )
                         )
                     time.sleep(_REQUEST_DELAY)
+
+        return results
+
+    def fetch_trending(self, pages: int = 1) -> list[TmdbItem]:
+        """Fetch globally trending movies and TV shows from TMDB (weekly window)."""
+        results: list[TmdbItem] = []
+
+        for media_type in ("movie", "tv"):
+            for page in range(1, pages + 1):
+                url = (
+                    f"{_TRENDING_URL}/{media_type}/week"
+                    f"?api_key={self._api_key}"
+                    f"&page={page}"
+                )
+                try:
+                    resp = requests.get(url, timeout=10)
+                    resp.raise_for_status()
+                    for item in resp.json().get("results", []):
+                        results.append(
+                            TmdbItem(
+                                title=item.get("title") if media_type == "movie" else item.get("name", ""),
+                                year=(item.get("release_date", "") or "")[:4]
+                                if media_type == "movie"
+                                else (item.get("first_air_date", "") or "")[:4],
+                                media_type=media_type,
+                                tmdb_id=item["id"],
+                                labels=["Discover_Trending"],
+                                genre_ids=item.get("genre_ids", []),
+                            )
+                        )
+                except Exception as exc:
+                    logger.warning("TMDB trending fetch failed (type=%s page=%d): %s", media_type, page, exc)
+                time.sleep(_REQUEST_DELAY)
 
         return results
 
@@ -73,6 +110,9 @@ class TmdbClient:
         except Exception as exc:
             logger.warning(
                 "TMDB fetch failed (provider=%s type=%s page=%d): %s",
-                provider_id, media_type, page, exc,
+                provider_id,
+                media_type,
+                page,
+                exc,
             )
             return []

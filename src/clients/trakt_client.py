@@ -1,6 +1,6 @@
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import requests
 
@@ -16,12 +16,23 @@ _REQUEST_DELAY = 1  # seconds between Trakt requests
 # profile → Lists for the exact slugs. These are the typical defaults.
 _DEFAULT_SLUGS = ["recommendations-movies", "recommendations-shows"]
 
+# Couchmoney sets this string in each themed list's description field.
+_COUCHMONEY_DESCRIPTION_MARKER = "couchmoney"
+
 
 @dataclass
 class TraktItem:
     title: str
     year: str | None
     media_type: str  # 'movie' or 'show'
+
+
+@dataclass
+class TraktList:
+    slug: str
+    display_name: str
+    label: str  # Plex label, e.g. "Discover_CM_Jason_Stathamesque"
+    items: list[TraktItem] = field(default_factory=list)
 
 
 class TraktClient:
@@ -62,3 +73,66 @@ class TraktClient:
             time.sleep(_REQUEST_DELAY)
 
         return results
+
+    def fetch_couchmoney_lists(self, username: str) -> list[TraktList]:
+        """
+        Discover and fetch all Couchmoney-generated themed lists from the user's Trakt account.
+
+        Identifies Couchmoney lists by checking for 'couchmoney' in the list description.
+        The standard recommendations-movies/shows slugs are excluded — they are handled
+        separately by fetch_recommendations() and shown as the "Recommended for Me" row.
+        """
+        url = f"{_BASE_URL}/users/{username}/lists"
+        try:
+            resp = requests.get(url, headers=self._headers, timeout=10)
+            resp.raise_for_status()
+            all_lists = resp.json()
+        except Exception as exc:
+            logger.warning("Failed to fetch Trakt lists for user %s: %s", username, exc)
+            return []
+
+        themed = [
+            lst for lst in all_lists
+            if _COUCHMONEY_DESCRIPTION_MARKER in lst.get("description", "").lower()
+            and lst["ids"]["slug"] not in _DEFAULT_SLUGS
+        ]
+        logger.info("Found %d Couchmoney themed lists for %s.", len(themed), username)
+
+        results: list[TraktList] = []
+        for lst_meta in themed:
+            slug = lst_meta["ids"]["slug"]
+            items = self._fetch_list_items(username, slug)
+            results.append(TraktList(
+                slug=slug,
+                display_name=lst_meta["name"],
+                label=_slug_to_label(slug),
+                items=items,
+            ))
+            time.sleep(_REQUEST_DELAY)
+
+        return results
+
+    def _fetch_list_items(self, username: str, slug: str) -> list[TraktItem]:
+        url = f"{_BASE_URL}/users/{username}/lists/{slug}/items"
+        try:
+            resp = requests.get(url, headers=self._headers, timeout=10)
+            resp.raise_for_status()
+            items = []
+            for entry in resp.json():
+                m_type = entry.get("type")
+                media_data = entry.get(m_type, {})
+                items.append(TraktItem(
+                    title=media_data.get("title", ""),
+                    year=str(media_data["year"]) if media_data.get("year") else None,
+                    media_type=m_type,
+                ))
+            return items
+        except Exception as exc:
+            logger.warning("Failed to fetch items for list %s: %s", slug, exc)
+            return []
+
+
+def _slug_to_label(slug: str) -> str:
+    """'jason-stathamesque' → 'Discover_CM_Jason_Stathamesque'"""
+    normalized = "_".join(part.capitalize() for part in slug.split("-"))
+    return f"Discover_CM_{normalized}"

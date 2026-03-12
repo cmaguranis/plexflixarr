@@ -15,24 +15,21 @@ class Settings(BaseSettings):
 
     # Trakt
     TRAKT_CLIENT_ID: str = ""
+    TRAKT_USERNAME: str = ""  # Required for Couchmoney themed list discovery
 
     # MDBList quality gate
     MDBLIST_API_KEY: str = ""
     MDBLIST_MIN_TRAKT: int = 70
-    MDBLIST_MIN_RT: int = 60
-
-    # Sonarr / Radarr
-    SONARR_BASEURL: str = "http://localhost:8989"
-    SONARR_API_KEY: str = ""
-    RADARR_BASEURL: str = "http://localhost:7878"
-    RADARR_API_KEY: str = ""
+    MDBLIST_MIN_RATING: int = 60
 
     # Filesystem paths
     TEMPLATE_FILE: Path = Path("assets/dummy.mkv")
     DISCOVER_MOVIES_PATH: Path = Path("/media/discover_movies")
     DISCOVER_SHOWS_PATH: Path = Path("/media/discover_shows")
-    REAL_MOVIES_PATH: Path = Path("/media/real_movies")
-    REAL_SHOWS_PATH: Path = Path("/media/real_shows")
+
+    # Real Plex library names used to skip duplicates during ingestion
+    REAL_MOVIES_LIBS: list[str] = ["Movies", "Anime Movies"]
+    REAL_SHOWS_LIBS: list[str] = ["TV Shows", "Anime TV"]
 
     # Ingestion tuning
     PAGES_PER_PROVIDER: int = 5
@@ -41,15 +38,22 @@ class Settings(BaseSettings):
         "15": "Discover_Hulu",
         "350": "Discover_AppleTV",
         "384": "Discover_Max",
+        "526": "Discover_AMC",
+        "283": "Discover_Crunchyroll",
+        "337": "Discover_Disney",
+        "80": "Discover_AdultSwim",
+    }
+    # TMDB genre IDs → Plex label  (https://www.themoviedb.org/talk/5daf6eb0ae36680011d7e6ee)
+    DISCOVER_GENRES: dict[str, str] = {
+        "28": "Discover_Action",
+        "35": "Discover_Comedy",
+        "18": "Discover_Drama",
+        "27": "Discover_Horror",
+        "878": "Discover_SciFi",
+        "10749": "Discover_Romance",
+        "16": "Discover_Animation",
+        "99": "Discover_Documentary",
     }
 
 
-# Module-level singleton — used directly by new code via `from src.config import settings`
 settings = Settings()
-
-# Callable wrappers for compatibility with existing sonarr_client / radarr_client
-# which call e.g. config.SONARR_BASEURL()
-SONARR_BASEURL = lambda: settings.SONARR_BASEURL  # noqa: E731
-SONARR_API_KEY = lambda: settings.SONARR_API_KEY  # noqa: E731
-RADARR_BASEURL = lambda: settings.RADARR_BASEURL  # noqa: E731
-RADARR_API_KEY = lambda: settings.RADARR_API_KEY  # noqa: E731

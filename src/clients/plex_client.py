@@ -30,6 +30,16 @@ class PlexClient:
 
         logger.info("All library scans complete.")
 
+    def exists_in_any(self, section_names: list[str], title: str, libtype: str) -> bool:
+        """Return True if a title exists in any of the given library sections."""
+        for name in section_names:
+            try:
+                if self.get_section(name).search(title=title, libtype=libtype):
+                    return True
+            except Exception:
+                logger.warning("Could not search Plex library '%s'", name)
+        return False
+
     def search(self, section_name: str, title: str, libtype: str) -> list:
         section = self.get_section(section_name)
         return section.search(title=title, libtype=libtype)

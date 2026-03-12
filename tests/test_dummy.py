@@ -60,12 +60,6 @@ def test_create_dummy_skips_unknown_year(config):
     assert create_dummy("No Year Show", "Unknown", "tv", config) is None
 
 
-def test_create_dummy_skips_if_real_exists(config):
-    folder = config.REAL_MOVIES_PATH / "Inception (2010)"
-    folder.mkdir(parents=True)
-    assert create_dummy("Inception", "2010", "movie", config) is None
-
-
 def test_create_dummy_skips_if_discover_exists(config):
     config.TEMPLATE_FILE.write_bytes(b"fake")
     create_dummy("Inception", "2010", "movie", config)

@@ -32,7 +32,7 @@ flowchart LR
     Tautulli --> Gone["poster vanishes"]
 ```
 
-**Key constraint:** Kometa only organises items already in the Plex library. All content population is handled by the `ingest` script — Kometa never triggers downloads.
+**Key constraint:** Kometa only organises items already in the Plex library. All content population is handled by the ingestion service — Kometa never triggers downloads.
 
 ---
 
@@ -46,7 +46,7 @@ You need the following services running before plexflixarr can operate:
 | **Sonarr** | Downloads and manages TV shows |
 | **Radarr** | Downloads and manages movies |
 | **Seerr** | Converts Plex Watchlist additions into Sonarr/Radarr requests |
-| **Tautulli** | Watches Plex events and fires the cleanup script |
+| **Tautulli** | Watches Plex events and calls the cleanup endpoint |
 | **Kometa** | Reads Plex labels and builds Smart Collection rows (included in `docker-compose.yml`) |
 | **PlexTraktSync** | Syncs your watch history to Trakt (included in `docker-compose.yml`) |
 
@@ -62,22 +62,26 @@ uv sync
 cp .env.example .env
 # Edit .env with your API keys and media paths
 
-# 3. Run the ingestion pipeline manually
-uv run ingest
+# 3. Start the service
+uv run uvicorn src.main:app --host 0.0.0.0 --port 8742
 
-# 4. Trigger cleanup manually (normally called by Tautulli)
-uv run cleanup show "Stranger Things"
-uv run cleanup movie "Inception"
+# 4. Trigger ingestion
+curl -s -X POST http://localhost:8742/ingestion/run
+
+# 5. Trigger cleanup manually (normally called by Tautulli)
+curl -s -X POST http://localhost:8742/dummy_cleanup \
+  -H "Content-Type: application/json" \
+  -d '{"media_type": "show", "title": "Stranger Things"}'
 ```
 
 ### Running via Docker
 
 ```bash
-# Build and run ingestion once
-docker compose run --rm plundarr
+# Start the plexflixarr service + Kometa + PlexTraktSync
+docker compose up -d
 
-# Start Kometa + PlexTraktSync as persistent services
-docker compose up -d kometa plextraktsync
+# Trigger ingestion once
+curl -s -X POST http://localhost:8742/ingestion/run
 ```
 
 ### Scheduling Nightly Ingestion
@@ -85,7 +89,26 @@ docker compose up -d kometa plextraktsync
 Add to your host crontab (`crontab -e`):
 
 ```
-0 2 * * * cd /path/to/plexflixarr && uv run ingest >> /var/log/plundarr.log 2>&1
+0 2 * * * curl -s -X POST http://localhost:8742/ingestion/run
+```
+
+---
+
+## API Reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Service health check |
+| `POST` | `/ingestion/fetch` | Fetch raw candidates from TMDB + Trakt (no filtering, no file writes) |
+| `POST` | `/ingestion/run` | Run the full ingestion pipeline in the background |
+| `POST` | `/dummy_cleanup` | Delete a dummy file and remove it from Plex |
+
+### Inspect fetched candidates
+
+```bash
+curl -s -X POST http://localhost:8742/ingestion/fetch \
+  | jq -r '["TYPE","TITLE","YEAR","LABELS"], ["----","-----","----","------"], (.[] | [.media_type, .title, (.year // "?"), (.labels | join(", "))]) | @tsv' \
+  | column -t -s $'\t'
 ```
 
 ---
@@ -109,7 +132,7 @@ Add to your host crontab (`crontab -e`):
 
 ### 2. Trakt.tv
 
-**Purpose:** The central hub for your watch history. PlexTraktSync feeds viewing data into Trakt; the ingest script pulls personalised recommendations out via Couchmoney.
+**Purpose:** The central hub for your watch history. PlexTraktSync feeds viewing data into Trakt; the ingestion service pulls personalised recommendations out via Couchmoney.
 
 1. Go to [trakt.tv](https://trakt.tv/) and create a free account. Do not pay for VIP.
 2. Click your profile icon → **Settings** → **Your API Apps** (bottom of left sidebar).
@@ -125,14 +148,14 @@ Add to your host crontab (`crontab -e`):
 
 ### 3. Couchmoney.tv
 
-**Purpose:** Reads your Trakt watch history and generates a daily "Recommended for Me" list. The ingest script pulls this list to create personalised dummy files.
+**Purpose:** Reads your Trakt watch history and generates a daily "Recommended for Me" list. The ingestion service pulls this list to create personalised dummy files.
 
 1. Go to [couchmoney.tv](https://couchmoney.tv/).
 2. Click **Login with Trakt** and authorise the connection.
 3. Couchmoney generates default lists (typically "TV Recommendations" and "Movie Recommendations").
 4. Go to your Trakt profile → **Lists**. Find the Couchmoney lists and note their **slugs** (the URL-friendly name in the list URL, e.g. `recommendations-movies`, `recommendations-shows`).
 
-The ingest script uses `recommendations-movies` and `recommendations-shows` by default. If your slugs differ, override in `src/clients/trakt_client.py` or pass them to `fetch_recommendations()`.
+The service uses `recommendations-movies` and `recommendations-shows` by default. If your slugs differ, override in `src/clients/trakt_client.py` or pass them to `fetch_recommendations()`.
 
 ---
 
@@ -148,7 +171,7 @@ The ingest script uses `recommendations-movies` and `recommendations-shows` by d
 
 Thresholds (defaults: Trakt ≥ 70 or RT ≥ 60):
 - `MDBLIST_MIN_TRAKT` — minimum Trakt score (0–100)
-- `MDBLIST_MIN_RT` — minimum Rotten Tomatoes score (0–100)
+- `MDBLIST_MIN_RATING` — minimum Rotten Tomatoes score (0–100)
 
 ---
 
@@ -161,18 +184,6 @@ Thresholds (defaults: Trakt ≥ 70 or RT ≥ 60):
 3. In the URL bar, find `X-Plex-Token=` — copy the value after the `=`.
 
 **Where it goes:** `PLEX_TOKEN` in `.env`. Also update `kometa-config/config.yml` → `plex.token`.
-
-#### Sonarr API Key
-
-Sonarr → **Settings** → **General** → **Security** → API Key.
-
-**Where it goes:** `SONARR_API_KEY` in `.env`.
-
-#### Radarr API Key
-
-Radarr → **Settings** → **General** → **Security** → API Key.
-
-**Where it goes:** `RADARR_API_KEY` in `.env`.
 
 ---
 
@@ -199,7 +210,7 @@ Seerr must be blind to the discovery libraries so it treats Watchlist requests a
 
 ### 8. Kometa
 
-Kometa reads Plex labels applied by the ingest script and builds Smart Collections pinned to the Plex home screen.
+Kometa reads Plex labels applied by the ingestion service and builds Smart Collections pinned to the Plex home screen.
 
 1. Update `kometa-config/config.yml`:
    - Set `plex.url` to your Plex server address (e.g. `http://192.168.1.100:32400`).
@@ -245,7 +256,7 @@ PlexTraktSync keeps Trakt's watch history in sync with Plex so Couchmoney genera
 
 ### 10. Tautulli — Cleanup Trigger
 
-Tautulli calls the `cleanup` script the moment a real file is imported into Plex, removing the corresponding dummy.
+Tautulli calls the `POST /dummy_cleanup` endpoint the moment a real file is imported into Plex, removing the corresponding dummy.
 
 Create **two** Script Notification Agents — one for shows, one for movies.
 
@@ -253,13 +264,19 @@ Create **two** Script Notification Agents — one for shows, one for movies.
 
 1. Tautulli → **Settings** → **Notification Agents** → **Add a new notification agent** → **Script**.
 2. **Configuration tab:**
-   - Script Folder: directory containing your `cleanup` entry point (or a wrapper: `uv run cleanup`).
-   - Script File: `cleanup` (or the wrapper script name).
+   - Script Folder: any directory (e.g. `/usr/local/bin`).
+   - Script File: a wrapper script that calls the API:
+     ```bash
+     #!/bin/bash
+     curl -s -X POST http://localhost:8742/dummy_cleanup \
+       -H "Content-Type: application/json" \
+       -d "{\"media_type\": \"$1\", \"title\": \"$2\"}"
+     ```
    - Description: `Cleanup Dummy Shows`
 3. **Triggers tab:** check **Recently Added**.
 4. **Conditions tab:**
    - `Library Name` **is** `<your real TV library name>` (e.g. `TV Shows`)
-   - This prevents the agent from firing when the ingest script adds dummy files.
+   - This prevents the agent from firing when the ingestion service adds dummy files.
 5. **Arguments tab** → expand **Recently Added**:
    ```
    show "{show_name}"
@@ -293,8 +310,6 @@ Sonarr and Radarr must notify Plex immediately on import so Tautulli picks up th
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in all values before running.
-
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PLEX_URL` | Yes | `http://localhost:32400` | Plex server base URL |
@@ -303,15 +318,11 @@ Copy `.env.example` to `.env` and fill in all values before running.
 | `TRAKT_CLIENT_ID` | Yes | — | Trakt application Client ID |
 | `MDBLIST_API_KEY` | Yes | — | MDBList API key (quality gate) |
 | `MDBLIST_MIN_TRAKT` | No | `70` | Minimum Trakt score to pass |
-| `MDBLIST_MIN_RT` | No | `60` | Minimum Rotten Tomatoes score to pass |
-| `SONARR_BASEURL` | Yes | `http://localhost:8989` | Sonarr base URL |
-| `SONARR_API_KEY` | Yes | — | Sonarr API key |
-| `RADARR_BASEURL` | Yes | `http://localhost:7878` | Radarr base URL |
-| `RADARR_API_KEY` | Yes | — | Radarr API key |
+| `MDBLIST_MIN_RATING` | No | `60` | Minimum Rotten Tomatoes score to pass |
 | `DISCOVER_MOVIES_PATH` | Yes | — | Absolute path to discovery movies folder |
 | `DISCOVER_SHOWS_PATH` | Yes | — | Absolute path to discovery shows folder |
-| `REAL_MOVIES_PATH` | Yes | — | Absolute path to real movies library folder |
-| `REAL_SHOWS_PATH` | Yes | — | Absolute path to real shows library folder |
+| `REAL_MOVIES_LIBS` | No | `["Movies","Anime Movies"]` | Plex library names to check for existing movies |
+| `REAL_SHOWS_LIBS` | No | `["TV Shows","Anime TV"]` | Plex library names to check for existing shows |
 | `TEMPLATE_FILE` | No | `assets/dummy.mkv` | Path to 1-second dummy video |
 | `PAGES_PER_PROVIDER` | No | `5` | TMDB pages per provider per type (20 items/page) |
 
@@ -321,18 +332,18 @@ Copy `.env.example` to `.env` and fill in all values before running.
 
 ```
 src/
+  main.py                 FastAPI app — ingestion and cleanup endpoints
   config.py               Pydantic settings (reads from .env)
   dummy.py                ffmpeg template generation, dummy file fs ops
+  logging_config.py       Colour terminal formatter
   clients/
     plex_client.py        plexapi wrapper
     tmdb_client.py        TMDB /discover API
     mdblist_client.py     MDBList quality gate (Trakt / RT ratings)
     trakt_client.py       Trakt / Couchmoney recommendations
-    sonarr_client.py      Sonarr API
-    radarr_client.py      Radarr API
   jobs/
-    ingestion.py          Nightly pipeline entry point
-    cleanup.py            Tautulli-triggered cleanup entry point
+    ingestion.py          Three-step pipeline: fetch → filter → write
+    cleanup.py            Tautulli-triggered cleanup
     queue.py              SQLite job queue
     schedule.py           JSON-backed enable/disable flag
 kometa-config/
@@ -347,6 +358,7 @@ assets/
 ## Development
 
 ```bash
-uv run ruff check src/ tests/   # lint
-uv run pytest                   # tests
+uv run uvicorn src.main:app --host 0.0.0.0 --port 8742 --reload   # start with live reload
+uv run ruff check src/ tests/                                       # lint
+uv run pytest                                                       # tests
 ```

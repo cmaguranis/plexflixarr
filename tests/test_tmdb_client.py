@@ -14,8 +14,10 @@ def test_fetch_streaming_returns_tmdb_items(config):
     movie = {"id": 1, "title": "Test Movie", "release_date": "2024-01-01"}
     show = {"id": 2, "name": "Test Show", "first_air_date": "2024-02-01"}
 
-    with patch("src.clients.tmdb_client.requests.get") as mock_get, \
-         patch("src.clients.tmdb_client.time.sleep"):
+    with (
+        patch("src.clients.tmdb_client.requests.get") as mock_get,
+        patch("src.clients.tmdb_client.time.sleep"),
+    ):
         mock_get.side_effect = lambda url, **_: (
             _mock_response([movie]) if "/movie" in url else _mock_response([show])
         )
@@ -28,8 +30,10 @@ def test_fetch_streaming_returns_tmdb_items(config):
 
 def test_fetch_streaming_includes_tmdb_id(config):
     movie = {"id": 42, "title": "IDed Movie", "release_date": "2024-01-01"}
-    with patch("src.clients.tmdb_client.requests.get") as mock_get, \
-         patch("src.clients.tmdb_client.time.sleep"):
+    with (
+        patch("src.clients.tmdb_client.requests.get") as mock_get,
+        patch("src.clients.tmdb_client.time.sleep"),
+    ):
         mock_get.return_value = _mock_response([movie])
         results = TmdbClient(config).fetch_streaming(pages=1)
 
@@ -39,8 +43,10 @@ def test_fetch_streaming_includes_tmdb_id(config):
 
 def test_fetch_streaming_attaches_provider_label(config):
     movie = {"id": 1, "title": "Netflix Movie", "release_date": "2024-01-01"}
-    with patch("src.clients.tmdb_client.requests.get") as mock_get, \
-         patch("src.clients.tmdb_client.time.sleep"):
+    with (
+        patch("src.clients.tmdb_client.requests.get") as mock_get,
+        patch("src.clients.tmdb_client.time.sleep"),
+    ):
         mock_get.return_value = _mock_response([movie])
         results = TmdbClient(config).fetch_streaming(pages=1)
 
@@ -49,8 +55,10 @@ def test_fetch_streaming_attaches_provider_label(config):
 
 
 def test_fetch_streaming_handles_api_error(config):
-    with patch("src.clients.tmdb_client.requests.get") as mock_get, \
-         patch("src.clients.tmdb_client.time.sleep"):
+    with (
+        patch("src.clients.tmdb_client.requests.get") as mock_get,
+        patch("src.clients.tmdb_client.time.sleep"),
+    ):
         mock_get.side_effect = Exception("network error")
         results = TmdbClient(config).fetch_streaming(pages=1)
     assert results == []

@@ -8,9 +8,13 @@ libraries:
   Discover Movies:
     metadata_path:
       - file: config/discovery_ui.yml
+    overlay_files:
+      - default: streaming
   Discover Shows:
     metadata_path:
       - file: config/discovery_ui.yml
+    overlay_files:
+      - default: streaming
 
 settings:
   cache: true
@@ -21,6 +25,6 @@ settings:
   sync_mode: sync
 
 plex:
-  url: http://YOUR_PLEX_IP:32400  # replace with your Plex server address
+  url: http://192.168.1.67:32400  # replace with your Plex server address
   token: YOUR_PLEX_TOKEN          # replace with your Plex token
   timeout: 60

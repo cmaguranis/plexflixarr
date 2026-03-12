@@ -1,16 +1,16 @@
 [project]
-name = "plundarr"
+name = "plexflixarr"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "plexapi>=4.15",
     "requests>=2.32",
     "pydantic-settings>=2.3",
+    "fastapi>=0.135.1",
+    "pydantic>=2.12.5",
+    "uvicorn>=0.41.0",
+    "jinja2>=3.1",
 ]
-
-[project.scripts]
-ingest = "src.jobs.ingestion:main"
-cleanup = "src.jobs.cleanup:main"
 
 [dependency-groups]
 dev = [
@@ -19,8 +19,11 @@ dev = [
     "ruff>=0.4",
 ]
 
+[tool.uv]
+package = true
+
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]

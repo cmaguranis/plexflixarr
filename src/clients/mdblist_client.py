@@ -17,13 +17,13 @@ class MdblistClient:
     def __init__(self, config: Settings) -> None:
         self._api_key = config.MDBLIST_API_KEY
         self._min_trakt = config.MDBLIST_MIN_TRAKT
-        self._min_rt = config.MDBLIST_MIN_RT
+        self._min_rt = config.MDBLIST_MIN_RATING
 
     def passes_quality_check(self, tmdb_id: int, media_type: str) -> bool:
         """
         Return True if the item meets the configured rating thresholds.
 
-        Accepts if Trakt score >= MDBLIST_MIN_TRAKT OR Rotten Tomatoes >= MDBLIST_MIN_RT.
+        Accepts if Trakt score >= MDBLIST_MIN_TRAKT OR Rotten Tomatoes >= MDBLIST_MIN_RATING.
         Returns False on API error so low-quality items are not silently admitted.
         'media_type' should be 'movie' or 'tv'; MDBList expects 'movie' or 'show'.
         """

@@ -1,0 +1,56 @@
+services:
+  # ── plexflixarr ────────────────────────────────────────────────────────────────
+  # FastAPI service. Exposes webhook endpoints for:
+  #   POST /ingest   — trigger the ingestion pipeline (called by cron or manually)
+  #   POST /cleanup  — called by Tautulli on real file import
+  plexflixarr:
+    image: ghcr.io/cmaguranis/plexflixarr:latest
+    container_name: plexflixarr
+    restart: unless-stopped
+    ports:
+      - 8742:8742
+    environment:
+      - TZ=${{ tz }}
+      - PLEX_URL=http://localhost:32400
+      - PLEX_TOKEN=
+      - TMDB_API_KEY=
+      - TRAKT_CLIENT_ID=
+      - TRAKT_USERNAME=cmaguranis
+      - MDBLIST_API_KEY=
+      - MDBLIST_MIN_TRAKT=40
+      - MDBLIST_MIN_RATING=40
+      - DISCOVER_MOVIES_PATH=/data/media_cache/discover_movies
+      - DISCOVER_SHOWS_PATH=/data/media_cache/discover_shows
+      - 'REAL_MOVIES_LIBS=["Movies","Anime Movies"]'
+      - 'REAL_SHOWS_LIBS=["TV Shows","Anime TV"]'
+      - PAGES_PER_PROVIDER=5
+    volumes:
+      - ${{ sf:"media" }}:/media:shared
+      - ${{ sf:"cache" }}:/data:rshared
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "7"
+    cpu_shares: 256
+
+  # ── Kometa ──────────────────────────────────────────────────────────────────
+  # Reads Plex labels applied by the ingest script and builds Smart Collections.
+  # After initial setup, schedule runs via KOMETA_TIME or a cron entry.
+  kometa:
+    image: kometateam/kometa:latest
+    container_name: kometa
+    environment:
+      - TZ=${{ tz }}
+      # Run once immediately on container start (useful for testing).
+      # Remove this line and set KOMETA_TIME for scheduled runs.
+      - KOMETA_RUN=true
+    volumes:
+      - ${{ sf:"appdata" }}/kometa:/config
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "7"
+    cpu_shares: 256

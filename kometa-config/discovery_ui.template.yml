@@ -94,7 +94,10 @@ collections:
   # ── Couchmoney themed collections (dynamically generated) ─────────────────
   # Populated by the ingestion service from TRAKT_USERNAME's Couchmoney lists.
   # Sort prefixes 30+ are reserved for these dynamic rows.
-
+{% for col in couchmoney_collections %}
+  "{{ col.display_name }}":
+    template: {name: discovery_row, label_name: {{ col.label }}, sort_prefix: {{ col.sort_prefix }}}
+{% endfor %}
 
 overlays:
   # ── "Request Needed" text badge (top of poster) ───────────────────────────

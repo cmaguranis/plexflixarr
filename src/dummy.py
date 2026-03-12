@@ -23,10 +23,18 @@ def ensure_template(path: Path) -> None:
     logger.info("Generating dummy template at %s", path)
     result = subprocess.run(
         [
-            "ffmpeg", "-y",
-            "-f", "lavfi", "-i", "color=size=1920x1080:rate=24:color=black",
-            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-t", "1",
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=size=1920x1080:rate=24:color=black",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t",
+            "1",
             str(path),
         ],
         capture_output=True,
@@ -49,9 +57,8 @@ def create_dummy(title: str, year: str | None, media_type: str, config: Settings
     folder_name = f"{sanitize_filename(title)} ({year})"
 
     if media_type in ("movie", "movies"):
-        real_path = config.REAL_MOVIES_PATH / folder_name
         discover_path = config.DISCOVER_MOVIES_PATH / folder_name
-        if real_path.exists() or discover_path.exists():
+        if discover_path.exists():
             return None
         discover_path.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(config.TEMPLATE_FILE, discover_path / f"{folder_name}.mkv")
@@ -59,9 +66,8 @@ def create_dummy(title: str, year: str | None, media_type: str, config: Settings
         return discover_path
 
     if media_type in ("show", "shows", "tv"):
-        real_path = config.REAL_SHOWS_PATH / folder_name
         discover_path = config.DISCOVER_SHOWS_PATH / folder_name
-        if real_path.exists() or discover_path.exists():
+        if discover_path.exists():
             return None
         season_dir = discover_path / "Season 01"
         season_dir.mkdir(parents=True, exist_ok=True)

@@ -19,8 +19,10 @@ def test_run_deletes_dummy_and_empties_trash(config, mock_plex_server, tmp_path)
         _make_dummy_item(dummy_folder)
     ]
 
-    with patch("src.jobs.cleanup.delete_dummy") as mock_del, \
-         patch("src.clients.plex_client.time.sleep"):
+    with (
+        patch("src.jobs.cleanup.delete_dummy") as mock_del,
+        patch("src.clients.plex_client.time.sleep"),
+    ):
         run("show", "Some Show", config)
         mock_del.assert_called_once_with(dummy_folder)
 

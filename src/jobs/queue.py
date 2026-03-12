@@ -48,7 +48,8 @@ class JobQueue:
                     except Exception:
                         pass  # column already exists
                 conn.execute(
-                    f"UPDATE {self._table} SET status='pending', updated_at=CURRENT_TIMESTAMP WHERE status='processing'"
+                    f"UPDATE {self._table} SET status='pending', updated_at=CURRENT_TIMESTAMP"
+                    " WHERE status='processing'"
                 )
                 conn.commit()
             finally:
@@ -60,7 +61,8 @@ class JobQueue:
             conn = self._connect()
             try:
                 cur = conn.execute(
-                    f"INSERT OR IGNORE INTO {self._table} (path, meta, status, priority) VALUES (?, ?, 'pending', ?)",
+                    f"INSERT OR IGNORE INTO {self._table}"
+                    " (path, meta, status, priority) VALUES (?, ?, 'pending', ?)",
                     (path, json.dumps(meta), priority),
                 )
                 conn.commit()
@@ -78,13 +80,16 @@ class JobQueue:
             conn = self._connect()
             try:
                 rows = conn.execute(
-                    f"SELECT * FROM {self._table} WHERE status='pending' ORDER BY priority DESC, created_at ASC LIMIT ?",
+                    f"SELECT * FROM {self._table} WHERE status='pending'"
+                    " ORDER BY priority DESC, created_at ASC LIMIT ?",
                     (limit,),
                 ).fetchall()
                 if rows:
                     ids = [r["id"] for r in rows]
+                    placeholders = ",".join("?" * len(ids))
                     conn.execute(
-                        f"UPDATE {self._table} SET status='processing', updated_at=CURRENT_TIMESTAMP WHERE id IN ({','.join('?' * len(ids))})",
+                        f"UPDATE {self._table} SET status='processing',"
+                        f" updated_at=CURRENT_TIMESTAMP WHERE id IN ({placeholders})",
                         ids,
                     )
                     conn.commit()
@@ -98,7 +103,9 @@ class JobQueue:
     def mark_failed(self, job_id: int, error: str | None = None):
         self._set_status(job_id, "failed", error=error)
 
-    def _set_status(self, job_id: int, status: str, meta_update: dict | None = None, error: str | None = None):
+    def _set_status(
+        self, job_id: int, status: str, meta_update: dict | None = None, error: str | None = None
+    ):
         with self._lock:
             conn = self._connect()
             try:
@@ -109,12 +116,14 @@ class JobQueue:
                     meta = json.loads((row["meta"] if row else None) or "{}")
                     meta.update(meta_update)
                     conn.execute(
-                        f"UPDATE {self._table} SET status=?, meta=?, error=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                        f"UPDATE {self._table} SET status=?, meta=?, error=?,"
+                        " updated_at=CURRENT_TIMESTAMP WHERE id=?",
                         (status, json.dumps(meta), error, job_id),
                     )
                 else:
                     conn.execute(
-                        f"UPDATE {self._table} SET status=?, error=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                        f"UPDATE {self._table} SET status=?, error=?,"
+                        " updated_at=CURRENT_TIMESTAMP WHERE id=?",
                         (status, error, job_id),
                     )
                 conn.commit()
@@ -125,9 +134,7 @@ class JobQueue:
         with self._lock:
             conn = self._connect()
             try:
-                row = conn.execute(
-                    f"SELECT * FROM {self._table} WHERE path=?", (path,)
-                ).fetchone()
+                row = conn.execute(f"SELECT * FROM {self._table} WHERE path=?", (path,)).fetchone()
                 return dict(row) if row else None
             finally:
                 conn.close()
@@ -164,7 +171,8 @@ class JobQueue:
                 meta = json.loads(row["meta"] or "{}")
                 meta["dry_run"] = dry_run
                 conn.execute(
-                    f"UPDATE {self._table} SET status='pending', meta=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    f"UPDATE {self._table} SET status='pending', meta=?,"
+                    " updated_at=CURRENT_TIMESTAMP WHERE id=?",
                     (json.dumps(meta), job_id),
                 )
                 conn.commit()
@@ -191,9 +199,7 @@ class JobQueue:
         with self._lock:
             conn = self._connect()
             try:
-                cur = conn.execute(
-                    f"DELETE FROM {self._table} WHERE status=?", (status,)
-                )
+                cur = conn.execute(f"DELETE FROM {self._table} WHERE status=?", (status,))
                 conn.commit()
                 return cur.rowcount
             finally:
@@ -222,25 +228,35 @@ class QueueModule:
     def __init__(self, db_path: str, table: str):
         self._q = JobQueue(db_path, table)
 
-    def init_db(self): self._q.init_db()
+    def init_db(self):
+        self._q.init_db()
 
     def enqueue_job(self, path: str, meta: dict, priority: int = 1) -> int | None:
         return self._q.enqueue_job(path, meta, priority)
 
-    def claim_pending_jobs(self, limit: int = 10) -> list: return self._q.claim_pending_jobs(limit)
+    def claim_pending_jobs(self, limit: int = 10) -> list:
+        return self._q.claim_pending_jobs(limit)
 
-    def mark_done(self, job_id: int, result: str | None = None): self._q.mark_done(job_id, result)
+    def mark_done(self, job_id: int, result: str | None = None):
+        self._q.mark_done(job_id, result)
 
-    def mark_failed(self, job_id: int, error: str | None = None): self._q.mark_failed(job_id, error)
+    def mark_failed(self, job_id: int, error: str | None = None):
+        self._q.mark_failed(job_id, error)
 
-    def get_job_by_path(self, path: str) -> dict | None: return self._q.get_job_by_path(path)
+    def get_job_by_path(self, path: str) -> dict | None:
+        return self._q.get_job_by_path(path)
 
-    def list_jobs(self, status: str | None = None) -> list: return self._q.list_jobs(status)
+    def list_jobs(self, status: str | None = None) -> list:
+        return self._q.list_jobs(status)
 
-    def requeue_job(self, job_id: int, dry_run: bool = False) -> bool: return self._q.requeue_job(job_id, dry_run)
+    def requeue_job(self, job_id: int, dry_run: bool = False) -> bool:
+        return self._q.requeue_job(job_id, dry_run)
 
-    def defer_job(self, job_id: int): self._q.defer_job(job_id)
+    def defer_job(self, job_id: int):
+        self._q.defer_job(job_id)
 
-    def clear_jobs(self, status: str) -> int: return self._q.clear_jobs(status)
+    def clear_jobs(self, status: str) -> int:
+        return self._q.clear_jobs(status)
 
-    def cleanup_jobs(self, done_days: int = 7, failed_days: int = 21): self._q.cleanup_jobs(done_days, failed_days)
+    def cleanup_jobs(self, done_days: int = 7, failed_days: int = 21):
+        self._q.cleanup_jobs(done_days, failed_days)
