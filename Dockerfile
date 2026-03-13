@@ -1,9 +1,11 @@
+FROM --platform=linux/amd64 ghcr.io/astral-sh/uv:latest AS uv
+
 FROM --platform=linux/amd64 python:3.12-slim
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=uv /uv /usr/local/bin/uv
 
 WORKDIR /app
 
