@@ -3,15 +3,14 @@
 # at the collection/overlay definitions in discovery_ui.yml.
 # No Trakt, MDBList, or Radarr/Sonarr keys are needed here — the Python
 # ingestion script handles all data fetching and dummy file management.
-
 libraries:
   Discover Movies:
-    metadata_path:
+    collection_files:
       - file: config/discovery_ui.yml
     overlay_files:
       - default: streaming
   Discover Shows:
-    metadata_path:
+    collection_files:
       - file: config/discovery_ui.yml
     overlay_files:
       - default: streaming
@@ -23,8 +22,13 @@ settings:
   # Place request_needed_icon.png at kometa-config/assets/overlays/
   asset_directory: config/assets
   sync_mode: sync
+  verify_ssl: true
 
 plex:
-  url: http://192.168.1.67:32400  # replace with your Plex server address
-  token: YOUR_PLEX_TOKEN          # replace with your Plex token
+  url: http://192.168.1.67:32400
+  token: YOUR_PLEX_TOKEN
   timeout: 60
+
+tmdb:
+  apikey: YOUR_TMDB_API_KEY
+  language: en

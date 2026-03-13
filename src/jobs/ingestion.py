@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass, field
 
 from src.clients.anilist_client import AniListClient
+from src.clients.anime_list_client import resolve_tmdb_id
 from src.clients.plex_client import PlexClient
 from src.clients.tmdb_client import TmdbClient
 from src.clients.trakt_client import TraktClient, TraktList
@@ -136,6 +137,11 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
                 )
             )
 
+    # Resolve AniList IDs to TMDb IDs so folders get {tmdb-N} names and dedup works across sources
+    for item in items:
+        if item.anilist_id is not None and item.tmdb_id is None:
+            item.tmdb_id = resolve_tmdb_id(item.anilist_id)
+
     # Merge labels for duplicate tmdb_ids (same title appearing in multiple sources)
     merged: dict[int, MediaItem] = {}
     for item in items:
@@ -239,7 +245,10 @@ def apply_labels(items: list[MediaItem], plex: PlexClient, *, with_retry: bool =
 def write_dummies(items: list[MediaItem], config: Settings) -> None:
     """Step 3: Create dummy .mkv files, trigger Plex scan, and apply labels."""
     ensure_template(config.TEMPLATE_FILE)
-    tagged = [item for item in items if create_dummy(item.title, item.year, item.media_type, config)]
+    tagged = [
+        item for item in items
+        if create_dummy(item.title, item.year, item.media_type, config, tmdb_id=item.tmdb_id)
+    ]
 
     if not tagged:
         logger.info("No new dummy files created.")

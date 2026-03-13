@@ -9,8 +9,7 @@ def _make_dummy_item(plex_path: str) -> MagicMock:
     return item
 
 
-def test_run_deletes_dummy_and_empties_trash(config, mock_plex_server):
-    # Simulate Plex reporting a show folder path (Plex-internal root differs from OS root)
+def test_run_deletes_show_dummy(config, mock_plex_server):
     mock_plex_server.library.section.return_value.search.return_value = [
         _make_dummy_item("/discover_shows/Some Show (2024)")
     ]
@@ -19,7 +18,7 @@ def test_run_deletes_dummy_and_empties_trash(config, mock_plex_server):
         patch("src.jobs.cleanup.delete_dummy") as mock_del,
         patch("src.clients.plex_client.time.sleep"),
     ):
-        run("episode", "Some Show", config=config)
+        run({"eventType": "Download", "series": {"title": "Some Show"}}, config=config)
         mock_del.assert_called_once_with(config.DISCOVER_SHOWS_PATH / "Some Show (2024)")
 
     mock_plex_server.library.section.return_value.emptyTrash.assert_called()
@@ -34,31 +33,18 @@ def test_run_deletes_movie_dummy(config, mock_plex_server):
         patch("src.jobs.cleanup.delete_dummy") as mock_del,
         patch("src.clients.plex_client.time.sleep"),
     ):
-        run("movie", "Inception", config=config)
+        run({"eventType": "Download", "movie": {"title": "Inception"}}, config=config)
         mock_del.assert_called_once_with(config.DISCOVER_MOVIES_PATH / "Inception (2010)")
-
-
-def test_run_deletes_show_dummy_for_season(config, mock_plex_server):
-    mock_plex_server.library.section.return_value.search.return_value = [
-        _make_dummy_item("/discover_shows/The Bear (2022)")
-    ]
-
-    with (
-        patch("src.jobs.cleanup.delete_dummy") as mock_del,
-        patch("src.clients.plex_client.time.sleep"),
-    ):
-        run("season", "Season 1", show_name="The Bear", config=config)
-        mock_del.assert_called_once_with(config.DISCOVER_SHOWS_PATH / "The Bear (2022)")
 
 
 def test_run_noop_when_no_dummy_found(config, mock_plex_server):
     mock_plex_server.library.section.return_value.search.return_value = []
     with patch("src.jobs.cleanup.delete_dummy") as mock_del:
-        run("episode", "Missing Show", config=config)
+        run({"eventType": "Download", "series": {"title": "Missing Show"}}, config=config)
         mock_del.assert_not_called()
 
 
-def test_run_logs_error_for_unknown_media_type(config, mock_plex_server):
+def test_run_ignores_payload_without_media_key(config, mock_plex_server):
     with patch("src.jobs.cleanup.delete_dummy") as mock_del:
-        run("anime", "Some Title", config=config)  # unknown type
+        run({"eventType": "Download"}, config=config)
         mock_del.assert_not_called()

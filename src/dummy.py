@@ -45,16 +45,27 @@ def ensure_template(path: Path) -> None:
     logger.info("Template created at %s", path)
 
 
-def create_dummy(title: str, year: str | None, media_type: str, config: Settings) -> Path | None:
+def create_dummy(
+    title: str,
+    year: str | None,
+    media_type: str,
+    config: Settings,
+    *,
+    tmdb_id: int | None = None,
+) -> Path | None:
     """
     Create a dummy media folder + file for the given title.
+
+    When tmdb_id is provided the folder is named ``Title (Year) {tmdb-N}`` so
+    Plex resolves the item by ID rather than guessing from the title string.
 
     Returns the created folder Path, or None if skipped (already exists or no year).
     """
     if not year or str(year) == "Unknown":
         return None
 
-    folder_name = f"{sanitize_filename(title)} ({year})"
+    base_name = f"{sanitize_filename(title)} ({year})"
+    folder_name = f"{base_name} {{tmdb-{tmdb_id}}}" if tmdb_id else base_name
 
     if media_type in ("movie", "movies"):
         discover_path = config.DISCOVER_MOVIES_PATH / folder_name

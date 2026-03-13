@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, FastAPI
-from pydantic import BaseModel
 
 from src.config import Settings
 from src.dummy import ensure_template
@@ -26,12 +25,6 @@ app = FastAPI(title="plexflixarr", lifespan=lifespan)
 _ingest_lock = threading.Lock()
 
 ingestion_router = APIRouter(prefix="/ingestion")
-
-
-class CleanupRequest(BaseModel):
-    media_type: str  # "episode" or "movie"
-    title: str
-    show_name: str | None = None
 
 
 @app.get("/health")
@@ -70,24 +63,6 @@ def trigger_ingest(background_tasks: BackgroundTasks) -> dict:
 app.include_router(ingestion_router)
 
 
-def _convert_arr_payload(payload: dict[str, Any]) -> CleanupRequest | None:
-    """Convert a Radarr/Sonarr webhook payload to a CleanupRequest, or None if ignored."""
-    if payload.get("eventType") != "Download":
-        return None
-    if "movie" in payload:
-        return CleanupRequest(media_type="movie", title=payload["movie"].get("title", ""), show_name=None)
-    if "series" in payload:
-        title = payload["series"].get("title", "")
-        return CleanupRequest(media_type="episode", title=title, show_name=title)
-    return None
-
-
-@app.post("/discover/tautulli/cleanup")
-def trigger_cleanup(body: CleanupRequest, background_tasks: BackgroundTasks) -> dict:
-    background_tasks.add_task(cleanup.run, body.media_type, body.title, body.show_name)
-    return {"status": "started", "media_type": body.media_type, "title": body.title}
-
-
 @app.post("/discover/arr/cleanup")
 async def arr_cleanup(payload: dict[str, Any], background_tasks: BackgroundTasks) -> dict:
     """Receives webhooks from Radarr/Sonarr.
@@ -96,11 +71,10 @@ async def arr_cleanup(payload: dict[str, Any], background_tasks: BackgroundTasks
     """
     if payload.get("eventType") == "Test":
         return {"status": "ok", "reason": "test event"}
-    req = _convert_arr_payload(payload)
-    if req is None:
+    if payload.get("eventType") != "Download":
         return {"status": "ignored", "reason": f"Unhandled eventType: {payload.get('eventType')}"}
-    background_tasks.add_task(cleanup.run, req.media_type, req.title, req.show_name)
-    return {"status": "started", "source": "arr", "media_type": req.media_type, "title": req.title}
+    background_tasks.add_task(cleanup.run, payload)
+    return {"status": "started", "source": "arr"}
 
 
 @app.post("/dummy/dedupe")

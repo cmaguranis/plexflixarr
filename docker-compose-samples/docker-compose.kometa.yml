@@ -1,0 +1,19 @@
+services:
+  kometa:
+    image: kometateam/kometa:latest
+    user: 0:0
+    container_name: kometa
+    environment:
+      - TZ=${{ tz }}
+      # Run once immediately on container start (useful for testing).
+      # Remove this line and set KOMETA_TIME for scheduled runs.
+      - KOMETA_RUN=true
+    volumes:
+      - ${{ sf:"appdata" }}/kometa:/config
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "7"
+    cpu_shares: 256
