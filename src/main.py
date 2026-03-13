@@ -58,6 +58,7 @@ def trigger_ingest(background_tasks: BackgroundTasks) -> dict:
     def _run() -> None:
         try:
             ingestion.run()
+            dedupe.run()
         finally:
             _ingest_lock.release()
 

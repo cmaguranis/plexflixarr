@@ -50,6 +50,16 @@ class PlexClient:
         section = self.get_section(section_name)
         return section.search(title=title, libtype=_plex_libtype(libtype))
 
+    def find_by_tmdb_id(self, section_name: str, tmdb_id: int, libtype: str) -> list:
+        """Search a library section by TMDB ID via Plex guid matching."""
+        section = self.get_section(section_name)
+        return section.search(guid=f"tmdb://{tmdb_id}", libtype=_plex_libtype(libtype))
+
+    def find_by_anilist_id(self, section_name: str, anilist_id: int, libtype: str) -> list:
+        """Search a library section by AniList ID via Plex guid matching."""
+        section = self.get_section(section_name)
+        return section.search(guid=f"anilist://{anilist_id}", libtype=_plex_libtype(libtype))
+
     def add_labels(self, item, labels: list[str]) -> None:
         for label in labels:
             item.addLabel(label)

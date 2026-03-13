@@ -21,6 +21,7 @@ query ($userName: String, $perPage: Int) {
           recommendations(sort: RATING_DESC, perPage: $perPage) {
             nodes {
               mediaRecommendation {
+                id
                 title { english romaji }
                 seasonYear
                 format
@@ -38,6 +39,7 @@ _TRENDING_QUERY = """
 query ($page: Int, $perPage: Int) {
   Page(page: $page, perPage: $perPage) {
     media(type: ANIME, sort: TRENDING_DESC) {
+      id
       title { english romaji }
       seasonYear
       format
@@ -62,6 +64,7 @@ class AniListItem:
     title: str
     year: str | None
     media_type: str  # 'movie' or 'show'
+    anilist_id: int | None = None
 
 
 class AniListClient:
@@ -117,6 +120,7 @@ class AniListClient:
                         title=title,
                         year=str(year) if year else None,
                         media_type=media_type,
+                        anilist_id=rec.get("id"),
                     ))
 
         return results
@@ -164,6 +168,7 @@ class AniListClient:
                     title=title,
                     year=str(year) if year else None,
                     media_type=media_type,
+                    anilist_id=media.get("id"),
                 ))
 
         return results

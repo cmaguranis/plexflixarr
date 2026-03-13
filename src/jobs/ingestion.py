@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 
 from src.clients.anilist_client import AniListClient
@@ -24,7 +25,8 @@ class MediaItem:
     year: str | None
     media_type: str
     labels: list[str] = field(default_factory=list)
-    tmdb_id: int | None = None  # None for Trakt items; MDBList quality check is skipped
+    tmdb_id: int | None = None
+    anilist_id: int | None = None
     genre_ids: list[int] = field(default_factory=list)
     vote_average: float = 0.0
     vote_count: int = 0
@@ -96,6 +98,7 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
             year=item.year,
             media_type=item.media_type,
             labels=["Discover_Anime"],
+            anilist_id=item.anilist_id,
         ))
 
     # Fetch AniList personalised anime recommendations (requires ANILIST_USERNAME)
@@ -107,6 +110,7 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
                 year=item.year,
                 media_type=item.media_type,
                 labels=["Discover_Anime"],
+                anilist_id=item.anilist_id,
             ))
 
     # Merge labels for duplicate tmdb_ids (same title appearing in multiple sources)
@@ -177,14 +181,42 @@ def write_dummies(items: list[MediaItem], config: Settings) -> None:
     logger.info("Triggering Plex library scans...")
     plex.refresh_and_wait(_DISCOVER_MOVIES_LIB, _DISCOVER_SHOWS_LIB)
 
-    logger.info("Applying Plex labels to %d items...", len(tagged))
+    by_id: list[MediaItem] = []
+    by_title: list[MediaItem] = []
     for item in tagged:
-        lib_name, libtype = _lib_and_type(item.media_type)
-        results = plex.search(lib_name, sanitize_filename(_base_title(item.title)), libtype)
+        if item.tmdb_id is not None or item.anilist_id is not None:
+            by_id.append(item)
+        else:
+            by_title.append(item)
+
+    logger.info("Applying Plex labels to %d items (%d by ID, %d by title)...", len(tagged), len(by_id), len(by_title))
+
+    def _label(item: MediaItem, results: list) -> None:
         if results:
             plex.add_labels(results[0], item.labels)
         else:
             logger.warning("Plex item not found after scan: %s", item.title)
+
+    for item in by_id:
+        lib_name, libtype = _lib_and_type(item.media_type)
+        results = None
+        for attempt in range(1, 4):
+            if item.tmdb_id is not None:
+                results = plex.find_by_tmdb_id(lib_name, item.tmdb_id, libtype)
+            else:
+                results = plex.find_by_anilist_id(lib_name, item.anilist_id, libtype)
+            if results:
+                break
+            logger.debug("Plex item not yet indexed (attempt %d/3): %s", attempt, item.title)
+            time.sleep(10)
+        _label(item, results)
+
+    if by_title:
+        logger.info("Looking up %d title-only items by name...", len(by_title))
+        for item in by_title:
+            lib_name, libtype = _lib_and_type(item.media_type)
+            results = plex.search(lib_name, sanitize_filename(_base_title(item.title)), libtype)
+            _label(item, results)
 
     logger.info("Ingestion complete.")
 
