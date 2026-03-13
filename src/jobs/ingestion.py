@@ -1,6 +1,5 @@
 import logging
 import re
-import time
 from dataclasses import dataclass, field
 
 from src.clients.anilist_client import AniListClient
@@ -192,36 +191,22 @@ def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
     return filtered
 
 
-def apply_labels(items: list[MediaItem], plex: PlexClient, *, with_retry: bool = True) -> None:
+def apply_labels(items: list[MediaItem], plex: PlexClient) -> None:
     """
-    Find each item in the Discover library and apply its labels.
+    Find each item in the Discover library by title and apply its labels.
 
-    Items with a TMDB or AniList ID are looked up by ID; Trakt-only items fall back to
-    title search. When with_retry=True, each ID lookup retries up to 3 times with a
-    10-second pause — used immediately after a Plex scan when indexing may lag.
+    Folder naming already embeds the TMDB ID (``Title (Year) {tmdb-N}``), so Plex
+    resolves matches correctly at scan time. Plex's new metadata agent sets the
+    primary ``guid`` to ``plex://...``, not ``tmdb://...``, so guid-based search
+    does not work — title search is used for all items instead.
+
     Only labels not already present on the item are added.
     """
-    by_id = [i for i in items if i.tmdb_id is not None or i.anilist_id is not None]
-    by_title = [i for i in items if i.tmdb_id is None and i.anilist_id is None]
+    logger.info("Applying Plex labels to %d items...", len(items))
 
-    logger.info("Applying Plex labels to %d items (%d by ID, %d by title)...", len(items), len(by_id), len(by_title))
-
-    def _find(item: MediaItem) -> list:
+    def _label(item: MediaItem) -> None:
         lib_name, libtype = _lib_and_type(item.media_type)
-        max_attempts = 3 if with_retry else 1
-        for attempt in range(1, max_attempts + 1):
-            if item.tmdb_id is not None:
-                results = plex.find_by_tmdb_id(lib_name, item.tmdb_id, libtype)
-            else:
-                results = plex.find_by_anilist_id(lib_name, item.anilist_id, libtype)
-            if results:
-                return results
-            logger.debug("Plex item not yet indexed (attempt %d/%d): %s", attempt, max_attempts, item.title)
-            if with_retry:
-                time.sleep(10)
-        return []
-
-    def _label(item: MediaItem, results: list) -> None:
+        results = plex.query_search(lib_name, _base_title(item.title), libtype)
         if not results:
             logger.warning("Plex item not found: %s", item.title)
             return
@@ -231,15 +216,8 @@ def apply_labels(items: list[MediaItem], plex: PlexClient, *, with_retry: bool =
         if missing:
             plex.add_labels(plex_item, missing)
 
-    for item in by_id:
-        _label(item, _find(item))
-
-    if by_title:
-        logger.info("Looking up %d title-only items by query...", len(by_title))
-        for item in by_title:
-            lib_name, libtype = _lib_and_type(item.media_type)
-            results = plex.query_search(lib_name, _base_title(item.title), libtype)
-            _label(item, results)
+    for item in items:
+        _label(item)
 
 
 def write_dummies(items: list[MediaItem], config: Settings) -> None:
@@ -257,7 +235,7 @@ def write_dummies(items: list[MediaItem], config: Settings) -> None:
     plex = PlexClient(config)
     logger.info("Triggering Plex library scans...")
     plex.refresh_and_wait(_DISCOVER_MOVIES_LIB, _DISCOVER_SHOWS_LIB)
-    apply_labels(tagged, plex, with_retry=True)
+    apply_labels(tagged, plex)
     logger.info("Ingestion complete.")
 
 

@@ -22,14 +22,17 @@ class PlexClient:
     def get_section(self, name: str):
         return self._server.library.section(name)
 
-    def refresh_and_wait(self, *section_names: str, max_wait: int = 300) -> None:
+    def refresh_and_wait(self, *section_names: str, max_wait: int = 300, delay: int = 30) -> None:
         """Trigger a library scan on each section and block until all finish."""
         sections = [self.get_section(n) for n in section_names]
         for section in sections:
             section.update()
             logger.info("Scan started for library: %s", section.title)
 
-        elapsed = 0
+        # Plex sets `refreshing` asynchronously — give it a moment before polling.
+        time.sleep(delay)
+
+        elapsed = 3
         while any(self._server.library.section(s.title).refreshing for s in sections):
             if elapsed >= max_wait:
                 logger.warning("Plex scan did not finish within %ds — proceeding anyway.", max_wait)
