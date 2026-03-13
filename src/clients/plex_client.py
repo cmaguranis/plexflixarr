@@ -42,8 +42,8 @@ class PlexClient:
             try:
                 if self.get_section(name).search(title=title, libtype=plex_type):
                     return True
-            except Exception:
-                logger.warning("Could not search Plex library '%s'", name)
+            except Exception as exc:
+                logger.warning("Could not search Plex library '%s': %s", name, exc)
         return False
 
     def search(self, section_name: str, title: str, libtype: str) -> list:
