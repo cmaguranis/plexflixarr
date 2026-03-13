@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # TMDB quality gate
     TMDB_MIN_VOTE_AVERAGE: float = 6.0
     TMDB_MIN_VOTE_COUNT: int = 100
+    # ISO 639-1 language codes to exclude from TMDB results (Trakt/AniList items are unaffected)
+    EXCLUDED_LANGUAGES: list[str] = ["hi", "ta", "te", "ml", "kn", "bn", "mr"]
 
     # Filesystem paths
     TEMPLATE_FILE: Path = Path("assets/dummy.mkv")

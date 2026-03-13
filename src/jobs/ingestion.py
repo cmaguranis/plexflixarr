@@ -8,7 +8,7 @@ from src.clients.plex_client import PlexClient
 from src.clients.tmdb_client import TmdbClient
 from src.clients.trakt_client import TraktClient, TraktList
 from src.config import Settings
-from src.dummy import create_dummy, ensure_template, sanitize_filename
+from src.dummy import create_dummy, ensure_template
 from src.jobs import kometa_config
 from src.jobs.schedule import Schedule
 
@@ -27,6 +27,7 @@ class MediaItem:
     labels: list[str] = field(default_factory=list)
     tmdb_id: int | None = None
     anilist_id: int | None = None
+    original_language: str = ""
     genre_ids: list[int] = field(default_factory=list)
     vote_average: float = 0.0
     vote_count: int = 0
@@ -52,6 +53,7 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
                 year=item.year,
                 media_type=item.media_type,
                 tmdb_id=item.tmdb_id,
+                original_language=item.original_language,
                 genre_ids=item.genre_ids,
                 labels=item.labels + _genre_labels(item.genre_ids, config),
                 vote_average=item.vote_average,
@@ -67,6 +69,7 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
                 year=item.year,
                 media_type=item.media_type,
                 tmdb_id=item.tmdb_id,
+                original_language=item.original_language,
                 genre_ids=item.genre_ids,
                 labels=item.labels + _genre_labels(item.genre_ids, config),
                 vote_average=item.vote_average,
@@ -84,6 +87,7 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
                 year=item.year,
                 media_type=item.media_type,
                 labels=["Discover_Recs"],
+                tmdb_id=item.tmdb_id,
             )
         )
 
@@ -100,6 +104,7 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
                         year=item.year,
                         media_type=item.media_type,
                         labels=[trakt_list.label],
+                        tmdb_id=item.tmdb_id,
                     )
                 )
 
@@ -155,6 +160,10 @@ def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
     filtered: list[MediaItem] = []
 
     for item in items:
+        if item.original_language and item.original_language in config.EXCLUDED_LANGUAGES:
+            logger.debug("Rejected (language=%s): %s", item.original_language, item.title)
+            continue
+
         # TMDB items carry vote data; Trakt/AniList items are personalised, skip quality gate
         if item.tmdb_id is not None:
             if item.vote_count < config.TMDB_MIN_VOTE_COUNT or item.vote_average < config.TMDB_MIN_VOTE_AVERAGE:
@@ -220,10 +229,10 @@ def apply_labels(items: list[MediaItem], plex: PlexClient, *, with_retry: bool =
         _label(item, _find(item))
 
     if by_title:
-        logger.info("Looking up %d title-only items by name...", len(by_title))
+        logger.info("Looking up %d title-only items by query...", len(by_title))
         for item in by_title:
             lib_name, libtype = _lib_and_type(item.media_type)
-            results = plex.search(lib_name, sanitize_filename(_base_title(item.title)), libtype)
+            results = plex.query_search(lib_name, _base_title(item.title), libtype)
             _label(item, results)
 
 

@@ -25,6 +25,7 @@ class TraktItem:
     title: str
     year: str | None
     media_type: str  # 'movie' or 'show'
+    tmdb_id: int | None = None
 
 
 @dataclass
@@ -66,6 +67,7 @@ class TraktClient:
                             title=media_data.get("title", ""),
                             year=str(media_data["year"]) if media_data.get("year") else None,
                             media_type=m_type,
+                            tmdb_id=media_data.get("ids", {}).get("tmdb"),
                         )
                     )
             except Exception as exc:
@@ -125,6 +127,7 @@ class TraktClient:
                     title=media_data.get("title", ""),
                     year=str(media_data["year"]) if media_data.get("year") else None,
                     media_type=m_type,
+                    tmdb_id=media_data.get("ids", {}).get("tmdb"),
                 ))
             return items
         except Exception as exc:

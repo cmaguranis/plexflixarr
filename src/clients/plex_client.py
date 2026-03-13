@@ -60,6 +60,13 @@ class PlexClient:
         section = self.get_section(section_name)
         return section.search(guid=f"anilist://{anilist_id}", libtype=_plex_libtype(libtype))
 
+    def query_search(self, section_name: str, query: str, libtype: str) -> list:
+        """Fuzzy hub search scoped to a single library section."""
+        section = self.get_section(section_name)
+        plex_type = _plex_libtype(libtype)
+        results = self._server.search(query, mediatype=plex_type, limit=5)
+        return [r for r in results if getattr(r, "librarySectionID", None) == section.key]
+
     def add_labels(self, item, labels: list[str]) -> None:
         for label in labels:
             item.addLabel(label)

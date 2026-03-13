@@ -20,6 +20,7 @@ class TmdbItem:
     year: str
     media_type: str  # 'movie' or 'tv'
     tmdb_id: int
+    original_language: str = ""
     labels: list[str] = field(default_factory=list)
     genre_ids: list[int] = field(default_factory=list)
     vote_average: float = 0.0
@@ -55,6 +56,7 @@ class TmdbClient:
                                 else (item.get("first_air_date", "") or "")[:4],
                                 media_type=media_type,
                                 tmdb_id=item["id"],
+                                original_language=item.get("original_language", ""),
                                 labels=[label],
                                 genre_ids=item.get("genre_ids", []),
                                 vote_average=item.get("vote_average", 0.0),
@@ -88,6 +90,7 @@ class TmdbClient:
                                 else (item.get("first_air_date", "") or "")[:4],
                                 media_type=media_type,
                                 tmdb_id=item["id"],
+                                original_language=item.get("original_language", ""),
                                 labels=["Discover_Trending"],
                                 genre_ids=item.get("genre_ids", []),
                                 vote_average=item.get("vote_average", 0.0),
