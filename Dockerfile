@@ -7,9 +7,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-COPY pyproject.toml .
-RUN uv sync --no-dev
+COPY pyproject.toml uv.lock ./
+RUN uv sync --no-dev --frozen
 
 COPY src/ src/
+COPY kometa-config/discovery_ui.template.yml templates/
 
-CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8742"]
+CMD ["/app/.venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8742"]

@@ -14,21 +14,22 @@ from src.clients.trakt_client import TraktList
 
 logger = logging.getLogger(__name__)
 
-_KOMETA_CONFIG_DIR = Path("kometa-config")
+_TEMPLATE_DIR = Path("templates")  # baked into the image at build time
 _TEMPLATE_FILE = "discovery_ui.template.yml"
-_OUTPUT_FILE = _KOMETA_CONFIG_DIR / "discovery_ui.yml"
+_OUTPUT_FILE = "discovery_ui.yml"
 _SORT_PREFIX_START = 30  # Static collections occupy 00–27
 
 
-def generate(trakt_lists: list[TraktList]) -> None:
+def generate(trakt_lists: list[TraktList], output_dir: Path | None = None) -> None:
     """
     Render discovery_ui.template.yml → discovery_ui.yml.
 
     Each TraktList becomes one Smart Collection row at sort prefixes 30, 31, …
     Pass an empty list to render with no dynamic collections (safe default).
+    output_dir overrides where the rendered file is written (defaults to _TEMPLATE_DIR).
     """
     env = Environment(
-        loader=FileSystemLoader(str(_KOMETA_CONFIG_DIR)),
+        loader=FileSystemLoader(str(_TEMPLATE_DIR)),
         keep_trailing_newline=True,
     )
     template = env.get_template(_TEMPLATE_FILE)
@@ -43,9 +44,12 @@ def generate(trakt_lists: list[TraktList]) -> None:
     ]
 
     rendered = template.render(couchmoney_collections=collections)
-    _OUTPUT_FILE.write_text(rendered, encoding="utf-8")
+    out_dir = output_dir or _TEMPLATE_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    output_path = out_dir / _OUTPUT_FILE
+    output_path.write_text(rendered, encoding="utf-8")
     logger.info(
         "Regenerated %s with %d Couchmoney themed collection(s).",
-        _OUTPUT_FILE,
+        output_path,
         len(collections),
     )

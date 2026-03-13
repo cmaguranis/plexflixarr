@@ -1,14 +1,15 @@
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 
 from src.clients.anilist_client import AniListClient
-from src.clients.mdblist_client import MdblistClient
+from src.clients.mdblist_client import MdblistClient, MdblistUnavailableError
 from src.clients.plex_client import PlexClient
 from src.clients.tmdb_client import TmdbClient
 from src.clients.trakt_client import TraktClient, TraktList
 from src.config import Settings
-from src.dummy import create_dummy, ensure_template
+from src.dummy import create_dummy, ensure_template, sanitize_filename
 from src.jobs import kometa_config
 from src.jobs.schedule import Schedule
 
@@ -28,6 +29,8 @@ class MediaItem:
     labels: list[str] = field(default_factory=list)
     tmdb_id: int | None = None  # None for Trakt items; MDBList quality check is skipped
     genre_ids: list[int] = field(default_factory=list)
+    vote_average: float = 0.0
+    vote_count: int = 0
 
 
 def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
@@ -48,6 +51,7 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
             title=item.title, year=item.year, media_type=item.media_type, tmdb_id=item.tmdb_id,
             genre_ids=item.genre_ids,
             labels=item.labels + _genre_labels(item.genre_ids, config),
+            vote_average=item.vote_average, vote_count=item.vote_count,
         ))
 
     logger.info("Fetching TMDB trending content...")
@@ -56,6 +60,7 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
             title=item.title, year=item.year, media_type=item.media_type, tmdb_id=item.tmdb_id,
             genre_ids=item.genre_ids,
             labels=item.labels + _genre_labels(item.genre_ids, config),
+            vote_average=item.vote_average, vote_count=item.vote_count,
         ))
 
     trakt = TraktClient(config)
@@ -131,20 +136,40 @@ def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
     plex = PlexClient(config)
     filtered: list[MediaItem] = []
 
+    mdblist_available = True
+
     for item in items:
         # TMDB items carry a tmdb_id; Trakt items are already personalised, skip quality gate
         if item.tmdb_id is not None:
-            if not mdblist.passes_quality_check(item.tmdb_id, item.media_type):
-                logger.debug("Rejected (quality): %s", item.title)
-                continue
-            time.sleep(_MDBLIST_RATE_DELAY)
+            if mdblist_available:
+                try:
+                    if not mdblist.passes_quality_check(item.tmdb_id, item.media_type):
+                        logger.debug("Rejected (quality): %s", item.title)
+                        continue
+                    time.sleep(_MDBLIST_RATE_DELAY)
+                except MdblistUnavailableError as exc:
+                    logger.warning(
+                        "MDBList unavailable (%s) — falling back to TMDB vote_average >= %.1f with >= %d votes",
+                        exc, config.TMDB_MIN_VOTE_AVERAGE, config.TMDB_MIN_VOTE_COUNT,
+                    )
+                    mdblist_available = False
+            if not mdblist_available:
+                if (
+                    item.vote_count < config.TMDB_MIN_VOTE_COUNT
+                    or item.vote_average < config.TMDB_MIN_VOTE_AVERAGE
+                ):
+                    logger.debug(
+                        "Rejected (TMDB fallback quality, %.1f/%d votes): %s",
+                        item.vote_average, item.vote_count, item.title,
+                    )
+                    continue
 
         real_libs = (
             config.REAL_MOVIES_LIBS
             if item.media_type in ("movie", "movies")
             else config.REAL_SHOWS_LIBS
         )
-        if plex.exists_in_any(real_libs, item.title, item.media_type):
+        if plex.exists_in_any(real_libs, _base_title(item.title), item.media_type):
             logger.debug("Already in real library, skipping: %s", item.title)
             continue
 
@@ -174,13 +199,25 @@ def write_dummies(items: list[MediaItem], config: Settings) -> None:
     logger.info("Applying Plex labels to %d items...", len(tagged))
     for item in tagged:
         lib_name, libtype = _lib_and_type(item.media_type)
-        results = plex.search(lib_name, item.title, libtype)
+        results = plex.search(lib_name, sanitize_filename(_base_title(item.title)), libtype)
         if results:
             plex.add_labels(results[0], item.labels)
         else:
             logger.warning("Plex item not found after scan: %s", item.title)
 
     logger.info("Ingestion complete.")
+
+
+_SEASON_SUFFIX_RE = re.compile(
+    r"\s+(?:Season|Part|Cour)\s+\d+.*$"   # "Season 3: ...", "Part 2", "Cour 2"
+    r"|\s+\(\d{4}\)\s*$",                  # trailing "(2011)"
+    re.IGNORECASE,
+)
+
+
+def _base_title(title: str) -> str:
+    """Strip trailing season/part/year suffixes for Plex dedup lookups."""
+    return _SEASON_SUFFIX_RE.sub("", title).strip()
 
 
 def _genre_labels(genre_ids: list[int], config: Settings) -> list[str]:
@@ -204,4 +241,4 @@ def run(config: Settings | None = None) -> None:
     items, themed_lists = fetch_media(config)
     filtered = filter_media(items, config)
     write_dummies(filtered, config)
-    kometa_config.generate(themed_lists)
+    kometa_config.generate(themed_lists, output_dir=config.KOMETA_CONFIG_PATH)

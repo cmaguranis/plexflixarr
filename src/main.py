@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from src.config import Settings
 from src.dummy import ensure_template
-from src.jobs import cleanup, ingestion
+from src.jobs import cleanup, dedupe, ingestion
 from src.jobs.ingestion import MediaItem, fetch_media
 from src.logging_config import setup_logging
 
@@ -38,6 +38,11 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/config/env")
+def config_env() -> dict:
+    return Settings().model_dump()
+
+
 @ingestion_router.post("/fetch")
 def fetch_candidates() -> list[MediaItem]:
     """Fetch raw candidates from TMDB and Trakt without filtering or writing files."""
@@ -67,3 +72,10 @@ app.include_router(ingestion_router)
 def trigger_cleanup(body: CleanupRequest, background_tasks: BackgroundTasks) -> dict:
     background_tasks.add_task(cleanup.run, body.media_type, body.title, body.show_name)
     return {"status": "started", "media_type": body.media_type, "title": body.title}
+
+
+@app.post("/dummy/dedupe")
+def trigger_dedupe(background_tasks: BackgroundTasks) -> dict:
+    """Remove all discover-library dummies that already exist in real Plex libraries."""
+    background_tasks.add_task(dedupe.run)
+    return {"status": "started"}

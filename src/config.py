@@ -26,10 +26,15 @@ class Settings(BaseSettings):
     MDBLIST_MIN_TRAKT: int = 70
     MDBLIST_MIN_RATING: int = 60
 
+    # TMDB fallback quality gate (used when MDBList is unavailable)
+    TMDB_MIN_VOTE_AVERAGE: float = 6.0
+    TMDB_MIN_VOTE_COUNT: int = 100
+
     # Filesystem paths
     TEMPLATE_FILE: Path = Path("assets/dummy.mkv")
     DISCOVER_MOVIES_PATH: Path = Path("/media/discover_movies")
     DISCOVER_SHOWS_PATH: Path = Path("/media/discover_shows")
+    KOMETA_CONFIG_PATH: Path = Path("kometa-config")  # Directory where discovery_ui.yml is written
 
     # Real Plex library names used to skip duplicates during ingestion
     REAL_MOVIES_LIBS: list[str] = ["Movies", "Anime Movies"]

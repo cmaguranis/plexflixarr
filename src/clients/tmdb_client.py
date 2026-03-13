@@ -22,6 +22,8 @@ class TmdbItem:
     tmdb_id: int
     labels: list[str] = field(default_factory=list)
     genre_ids: list[int] = field(default_factory=list)
+    vote_average: float = 0.0
+    vote_count: int = 0
 
 
 class TmdbClient:
@@ -55,6 +57,8 @@ class TmdbClient:
                                 tmdb_id=item["id"],
                                 labels=[label],
                                 genre_ids=item.get("genre_ids", []),
+                                vote_average=item.get("vote_average", 0.0),
+                                vote_count=item.get("vote_count", 0),
                             )
                         )
                     time.sleep(_REQUEST_DELAY)
@@ -86,6 +90,8 @@ class TmdbClient:
                                 tmdb_id=item["id"],
                                 labels=["Discover_Trending"],
                                 genre_ids=item.get("genre_ids", []),
+                                vote_average=item.get("vote_average", 0.0),
+                                vote_count=item.get("vote_count", 0),
                             )
                         )
                 except Exception as exc:

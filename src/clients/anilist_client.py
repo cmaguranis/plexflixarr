@@ -121,7 +121,7 @@ class AniListClient:
 
         return results
 
-    def fetch_trending(self, pages: int = 2, per_page: int = 50) -> list[AniListItem]:
+    def fetch_trending(self, pages: int = 1, per_page: int = 20) -> list[AniListItem]:
         """
         Fetch currently trending anime from AniList (no auth required).
 
