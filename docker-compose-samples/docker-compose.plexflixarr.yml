@@ -14,9 +14,8 @@ services:
       - TRAKT_USERNAME=cmaguranis
       # - ANILIST_USERNAME=cmaguranis
       - ANILIST_RECS_PER_ENTRY=3
-      - MDBLIST_API_KEY=
-      - MDBLIST_MIN_TRAKT=40
-      - MDBLIST_MIN_RATING=40
+      - TMDB_MIN_VOTE_AVERAGE=5.5
+      - TMDB_MIN_VOTE_COUNT=100
       - DISCOVER_MOVIES_PATH=/data/discover_movies
       - DISCOVER_SHOWS_PATH=/data/discover_shows
       - 'REAL_MOVIES_LIBS=["Movies","Anime Movies"]'

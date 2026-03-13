@@ -3,7 +3,6 @@ import re
 from dataclasses import dataclass, field
 
 from src.clients.anilist_client import AniListClient
-from src.clients.mdblist_client import MdblistClient, MdblistUnavailableError
 from src.clients.plex_client import PlexClient
 from src.clients.tmdb_client import TmdbClient
 from src.clients.trakt_client import TraktClient, TraktList
@@ -131,52 +130,20 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
 def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
     """Step 2: Remove low-quality titles and those already owned in real Plex libraries."""
     plex = PlexClient(config)
-
-    # --- Batch MDBList quality gate ---
-    # Group TMDB items by media_type for bulk API calls (2 calls total: movie + show).
-    # Trakt/AniList items have no tmdb_id and skip the quality gate entirely.
-    quality_pass: dict[int, bool] = {}
-    mdblist_available = bool(config.MDBLIST_API_KEY)
-
-    if mdblist_available:
-        mdblist = MdblistClient(config)
-        try:
-            for m_type in ("movie", "show"):
-                # MDBList uses "show"; TMDB uses "tv" — normalise here
-                ids = [
-                    i.tmdb_id
-                    for i in items
-                    if i.tmdb_id is not None
-                    and (i.media_type == m_type or (m_type == "show" and i.media_type == "tv"))
-                ]
-                if ids:
-                    quality_pass.update(mdblist.batch_quality_check(ids, m_type))
-        except MdblistUnavailableError as exc:
-            logger.warning(
-                "MDBList unavailable (%s) — falling back to TMDB vote_average >= %.1f"
-                " with >= %d votes",
-                exc, config.TMDB_MIN_VOTE_AVERAGE, config.TMDB_MIN_VOTE_COUNT,
-            )
-            mdblist_available = False
-
-    # --- Per-item filtering ---
     filtered: list[MediaItem] = []
+
     for item in items:
+        # TMDB items carry vote data; Trakt/AniList items are personalised, skip quality gate
         if item.tmdb_id is not None:
-            if mdblist_available:
-                if not quality_pass.get(item.tmdb_id, False):
-                    logger.debug("Rejected (quality): %s", item.title)
-                    continue
-            else:
-                if (
-                    item.vote_count < config.TMDB_MIN_VOTE_COUNT
-                    or item.vote_average < config.TMDB_MIN_VOTE_AVERAGE
-                ):
-                    logger.debug(
-                        "Rejected (TMDB fallback quality, %.1f/%d votes): %s",
-                        item.vote_average, item.vote_count, item.title,
-                    )
-                    continue
+            if (
+                item.vote_count < config.TMDB_MIN_VOTE_COUNT
+                or item.vote_average < config.TMDB_MIN_VOTE_AVERAGE
+            ):
+                logger.debug(
+                    "Rejected (quality, %.1f/%d votes): %s",
+                    item.vote_average, item.vote_count, item.title,
+                )
+                continue
 
         real_libs = (
             config.REAL_MOVIES_LIBS

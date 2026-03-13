@@ -21,12 +21,7 @@ class Settings(BaseSettings):
     ANILIST_USERNAME: str = ""        # Required for personalised anime recommendations
     ANILIST_RECS_PER_ENTRY: int = 3   # Recommendations fetched per completed anime title
 
-    # MDBList quality gate
-    MDBLIST_API_KEY: str = ""
-    MDBLIST_MIN_TRAKT: int = 70
-    MDBLIST_MIN_RATING: int = 60
-
-    # TMDB fallback quality gate (used when MDBList is unavailable)
+    # TMDB quality gate
     TMDB_MIN_VOTE_AVERAGE: float = 6.0
     TMDB_MIN_VOTE_COUNT: int = 100
 
