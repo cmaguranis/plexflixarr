@@ -1,6 +1,5 @@
 import logging
 import re
-import time
 from dataclasses import dataclass, field
 
 from src.clients.anilist_client import AniListClient
@@ -15,7 +14,6 @@ from src.jobs.schedule import Schedule
 
 logger = logging.getLogger(__name__)
 
-_MDBLIST_RATE_DELAY = 1  # seconds between MDBList lookup calls (free tier: 1,000/day)
 _INGEST_SCHEDULE_PATH = "scripts/ingest_schedule.json"
 _DISCOVER_MOVIES_LIB = "Discover Movies"
 _DISCOVER_SHOWS_LIB = "Discover Shows"
@@ -132,28 +130,44 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
 
 def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
     """Step 2: Remove low-quality titles and those already owned in real Plex libraries."""
-    mdblist = MdblistClient(config)
     plex = PlexClient(config)
+
+    # --- Batch MDBList quality gate ---
+    # Group TMDB items by media_type for bulk API calls (2 calls total: movie + show).
+    # Trakt/AniList items have no tmdb_id and skip the quality gate entirely.
+    quality_pass: dict[int, bool] = {}
+    mdblist_available = bool(config.MDBLIST_API_KEY)
+
+    if mdblist_available:
+        mdblist = MdblistClient(config)
+        try:
+            for m_type in ("movie", "show"):
+                # MDBList uses "show"; TMDB uses "tv" — normalise here
+                ids = [
+                    i.tmdb_id
+                    for i in items
+                    if i.tmdb_id is not None
+                    and (i.media_type == m_type or (m_type == "show" and i.media_type == "tv"))
+                ]
+                if ids:
+                    quality_pass.update(mdblist.batch_quality_check(ids, m_type))
+        except MdblistUnavailableError as exc:
+            logger.warning(
+                "MDBList unavailable (%s) — falling back to TMDB vote_average >= %.1f"
+                " with >= %d votes",
+                exc, config.TMDB_MIN_VOTE_AVERAGE, config.TMDB_MIN_VOTE_COUNT,
+            )
+            mdblist_available = False
+
+    # --- Per-item filtering ---
     filtered: list[MediaItem] = []
-
-    mdblist_available = True
-
     for item in items:
-        # TMDB items carry a tmdb_id; Trakt items are already personalised, skip quality gate
         if item.tmdb_id is not None:
             if mdblist_available:
-                try:
-                    if not mdblist.passes_quality_check(item.tmdb_id, item.media_type):
-                        logger.debug("Rejected (quality): %s", item.title)
-                        continue
-                    time.sleep(_MDBLIST_RATE_DELAY)
-                except MdblistUnavailableError as exc:
-                    logger.warning(
-                        "MDBList unavailable (%s) — falling back to TMDB vote_average >= %.1f with >= %d votes",
-                        exc, config.TMDB_MIN_VOTE_AVERAGE, config.TMDB_MIN_VOTE_COUNT,
-                    )
-                    mdblist_available = False
-            if not mdblist_available:
+                if not quality_pass.get(item.tmdb_id, False):
+                    logger.debug("Rejected (quality): %s", item.title)
+                    continue
+            else:
                 if (
                     item.vote_count < config.TMDB_MIN_VOTE_COUNT
                     or item.vote_average < config.TMDB_MIN_VOTE_AVERAGE

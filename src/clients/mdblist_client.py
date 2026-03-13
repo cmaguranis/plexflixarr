@@ -8,11 +8,8 @@ from src.config import Settings
 
 logger = logging.getLogger(__name__)
 
-_BASE_URL = "https://mdblist.com/api/"
-
-# Free tier: 1,000 lookup checks per day.
-# With 4 providers × 5 pages × 20 results × 2 types = 800 checks per night,
-# this stays within the limit. The caller is responsible for sleeping 1s between calls.
+_BASE_URL = "https://api.mdblist.com/rating"
+_BATCH_SIZE = 200  # API limit per request
 
 # Retry only on genuine transient errors — not 503, which MDBList uses for rate limiting.
 _retry = Retry(total=3, backoff_factor=2, status_forcelist=[429, 500, 502, 504])
@@ -31,47 +28,46 @@ class MdblistClient:
         self._min_trakt = config.MDBLIST_MIN_TRAKT
         self._min_rt = config.MDBLIST_MIN_RATING
 
-    def passes_quality_check(self, tmdb_id: int, media_type: str) -> bool:
+    def _fetch_ratings(self, tmdb_ids: list[int], media_type: str, rating: str) -> dict[int, float]:
         """
-        Return True if the item meets the configured rating thresholds.
+        Fetch one rating type for a batch of TMDB IDs (up to 200 per call).
 
-        Accepts if Trakt score >= MDBLIST_MIN_TRAKT OR Rotten Tomatoes >= MDBLIST_MIN_RATING.
-        Raises MdblistUnavailableError on auth/rate-limit errors so the caller can fail open.
-        'media_type' should be 'movie' or 'tv'; MDBList expects 'movie' or 'show'.
+        Returns dict of tmdb_id -> rating value.
+        Raises MdblistUnavailableError on auth/rate-limit errors.
         """
-        m_type = "movie" if media_type == "movie" else "show"
-        try:
-            resp = _session.get(
-                _BASE_URL,
-                params={"apikey": self._api_key, "tmdb": tmdb_id, "m": m_type},
-                timeout=10,
+        scores: dict[int, float] = {}
+        for offset in range(0, len(tmdb_ids), _BATCH_SIZE):
+            chunk = tmdb_ids[offset : offset + _BATCH_SIZE]
+            resp = _session.post(
+                f"{_BASE_URL}/{media_type}/{rating}",
+                params={"apikey": self._api_key},
+                json={"ids": chunk, "provider": "tmdb"},
+                timeout=15,
             )
-
-            # MDBList signals rate-limit / invalid key via 503 with a JSON error body.
             if resp.status_code == 503:
                 body = resp.json() if resp.content else {}
                 raise MdblistUnavailableError(body.get("error", "503 Service Unavailable"))
-
             resp.raise_for_status()
-            data = resp.json()
+            for entry in resp.json().get("ratings", []):
+                if entry.get("rating") is not None:
+                    scores[entry["id"]] = entry["rating"]
+        return scores
 
-            if "error" in data:
-                # Item not found on MDBList yet — skip it
-                logger.debug("MDBList: item not found (tmdb_id=%s)", tmdb_id)
-                return False
+    def batch_quality_check(self, tmdb_ids: list[int], media_type: str) -> dict[int, bool]:
+        """
+        Quality-gate a batch of TMDB IDs for one media type ('movie' or 'show').
 
-            for rating in data.get("ratings", []):
-                source = rating.get("source")
-                value = rating.get("value") or 0
-                if source == "trakt" and value >= self._min_trakt:
-                    return True
-                if source == "tomatoes" and value >= self._min_rt:
-                    return True
+        Passes if Trakt score >= MDBLIST_MIN_TRAKT OR Rotten Tomatoes >= MDBLIST_MIN_RATING.
+        Items absent from both responses are treated as failing the gate.
+        Raises MdblistUnavailableError on auth/rate-limit errors so the caller can fail open.
+        """
+        trakt = self._fetch_ratings(tmdb_ids, media_type, "trakt")
+        tomatoes = self._fetch_ratings(tmdb_ids, media_type, "tomatoes")
 
-            return False
-
-        except MdblistUnavailableError:
-            raise
-        except Exception as exc:
-            logger.warning("MDBList check failed (tmdb_id=%s): %s — skipping item", tmdb_id, exc)
-            return False
+        return {
+            tmdb_id: (
+                trakt.get(tmdb_id, 0) >= self._min_trakt
+                or tomatoes.get(tmdb_id, 0) >= self._min_rt
+            )
+            for tmdb_id in tmdb_ids
+        }
