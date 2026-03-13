@@ -1,14 +1,14 @@
 import logging
-from pathlib import Path
 
 from src.clients.plex_client import PlexClient
 from src.config import Settings
-from src.dummy import delete_dummy
+from src.dummy import delete_dummy, item_folder
 
 logger = logging.getLogger(__name__)
 
 _DISCOVER_LIBS = {
     "episode": "Discover Shows",
+    "season": "Discover Shows",
     "movie": "Discover Movies",
 }
 
@@ -19,10 +19,10 @@ def run(media_type: str, title: str, show_name: str | None = None, config: Setti
 
     lib_name = _DISCOVER_LIBS.get(media_type)
     if not lib_name:
-        logger.error("Unknown media_type '%s' — expected 'episode' or 'movie'.", media_type)
+        logger.error("Unknown media_type '%s' — expected 'episode', 'season', or 'movie'.", media_type)
         return
 
-    lookup_title = show_name if media_type == "episode" else title
+    lookup_title = show_name if media_type in ("episode", "season") else title
 
     plex = PlexClient(config)
     results = plex.search(lib_name, lookup_title, media_type)
@@ -32,10 +32,7 @@ def run(media_type: str, title: str, show_name: str | None = None, config: Setti
         return
 
     dummy = results[0]
-    base_path = config.DISCOVER_MOVIES_PATH if media_type == "movie" else config.DISCOVER_SHOWS_PATH
-    loc = Path(dummy.locations[0])
-    folder_name = loc.parent.name if media_type == "movie" else loc.name
-    folder = base_path / folder_name
+    folder = item_folder(dummy, media_type, config)
     logger.info("Cleaning up dummy for '%s' at %s", lookup_title, folder)
 
     delete_dummy(folder)

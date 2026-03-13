@@ -1,17 +1,16 @@
 import logging
-from pathlib import Path
 
 from src.clients.plex_client import PlexClient
 from src.config import Settings
-from src.dummy import delete_dummy
+from src.dummy import delete_dummy, item_folder
 from src.jobs.ingestion import _base_title
 
 logger = logging.getLogger(__name__)
 
-_DISCOVER_LIBS: list[tuple[str, str, list[str]]] = [
-    # (discover_lib, libtype, real_libs)
-    ("Discover Movies", "movie", None),
-    ("Discover Shows", "show", None),
+_DISCOVER_LIBS: list[tuple[str, str]] = [
+    # (discover_lib, libtype)
+    ("Discover Movies", "movie"),
+    ("Discover Shows", "show"),
 ]
 
 
@@ -28,14 +27,9 @@ def run(config: Settings | None = None) -> dict:
         "movie": config.REAL_MOVIES_LIBS,
         "show": config.REAL_SHOWS_LIBS,
     }
-    discover_base = {
-        "movie": config.DISCOVER_MOVIES_PATH,
-        "show": config.DISCOVER_SHOWS_PATH,
-    }
-
     removed: dict[str, int] = {}
 
-    for discover_lib, libtype, _ in _DISCOVER_LIBS:
+    for discover_lib, libtype in _DISCOVER_LIBS:
         count = 0
         try:
             section = plex.get_section(discover_lib)
@@ -46,9 +40,7 @@ def run(config: Settings | None = None) -> dict:
         for item in section.all():
             base = _base_title(item.title)
             if plex.exists_in_any(real_libs_by_type[libtype], base, libtype):
-                loc = Path(item.locations[0])
-                folder_name = loc.parent.name if libtype == "movie" else loc.name
-                folder = discover_base[libtype] / folder_name
+                folder = item_folder(item, libtype, config)
                 logger.info("Deduping '%s' (found in real library) — removing %s", item.title, folder)
                 delete_dummy(folder)
                 count += 1

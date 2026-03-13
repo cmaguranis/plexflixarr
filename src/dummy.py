@@ -78,6 +78,14 @@ def create_dummy(title: str, year: str | None, media_type: str, config: Settings
     return None
 
 
+def item_folder(item, libtype: str, config: Settings) -> Path:
+    """Resolve the OS folder path for a Plex dummy item."""
+    base = config.DISCOVER_MOVIES_PATH if libtype == "movie" else config.DISCOVER_SHOWS_PATH
+    loc = Path(item.locations[0])
+    folder_name = loc.parent.name if libtype == "movie" else loc.name
+    return base / folder_name
+
+
 def delete_dummy(folder: Path) -> None:
     """Permanently remove a dummy media folder from the filesystem."""
     if folder.exists():

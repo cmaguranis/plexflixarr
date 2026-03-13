@@ -1,8 +1,8 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.dummy import create_dummy, delete_dummy, ensure_template, sanitize_filename
+from src.dummy import create_dummy, delete_dummy, ensure_template, item_folder, sanitize_filename
 
 
 def test_sanitize_filename_strips_invalid_chars():
@@ -77,3 +77,15 @@ def test_delete_dummy(tmp_path):
 
 def test_delete_dummy_noop_if_missing(tmp_path):
     delete_dummy(tmp_path / "nonexistent")  # should not raise
+
+
+def test_item_folder_movie(config):
+    item = MagicMock()
+    item.locations = ["/discover_movies/Inception (2010)/Inception (2010).mkv"]
+    assert item_folder(item, "movie", config) == config.DISCOVER_MOVIES_PATH / "Inception (2010)"
+
+
+def test_item_folder_show(config):
+    item = MagicMock()
+    item.locations = ["/discover_shows/The Bear (2022)"]
+    assert item_folder(item, "show", config) == config.DISCOVER_SHOWS_PATH / "The Bear (2022)"

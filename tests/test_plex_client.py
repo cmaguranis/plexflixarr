@@ -42,3 +42,11 @@ def test_empty_trash(config, mock_plex_server):
     client = PlexClient(config)
     client.empty_trash("Discover Movies")
     mock_plex_server.library.section.return_value.emptyTrash.assert_called_once()
+
+
+def test_refresh_and_wait_times_out(config, mock_plex_server):
+    section = mock_plex_server.library.section.return_value
+    type(section).refreshing = property(lambda self: True)  # never finishes
+    with patch("src.clients.plex_client.time.sleep"):
+        client = PlexClient(config)
+        client.refresh_and_wait("Discover Movies", max_wait=0)  # should break immediately
