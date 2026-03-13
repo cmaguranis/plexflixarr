@@ -32,7 +32,10 @@ def run(media_type: str, title: str, show_name: str | None = None, config: Setti
         return
 
     dummy = results[0]
-    folder = Path(dummy.locations[0])
+    base_path = config.DISCOVER_MOVIES_PATH if media_type == "movie" else config.DISCOVER_SHOWS_PATH
+    loc = Path(dummy.locations[0])
+    folder_name = loc.parent.name if media_type == "movie" else loc.name
+    folder = base_path / folder_name
     logger.info("Cleaning up dummy for '%s' at %s", lookup_title, folder)
 
     delete_dummy(folder)

@@ -28,6 +28,10 @@ def run(config: Settings | None = None) -> dict:
         "movie": config.REAL_MOVIES_LIBS,
         "show": config.REAL_SHOWS_LIBS,
     }
+    discover_base = {
+        "movie": config.DISCOVER_MOVIES_PATH,
+        "show": config.DISCOVER_SHOWS_PATH,
+    }
 
     removed: dict[str, int] = {}
 
@@ -42,7 +46,9 @@ def run(config: Settings | None = None) -> dict:
         for item in section.all():
             base = _base_title(item.title)
             if plex.exists_in_any(real_libs_by_type[libtype], base, libtype):
-                folder = Path(item.locations[0])
+                loc = Path(item.locations[0])
+                folder_name = loc.parent.name if libtype == "movie" else loc.name
+                folder = discover_base[libtype] / folder_name
                 logger.info("Deduping '%s' (found in real library) — removing %s", item.title, folder)
                 delete_dummy(folder)
                 count += 1
