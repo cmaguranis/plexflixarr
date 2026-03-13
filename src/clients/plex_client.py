@@ -10,6 +10,11 @@ logger = logging.getLogger(__name__)
 _POLL_INTERVAL = 10  # seconds between scan-completion polls
 
 
+def _plex_libtype(media_type: str) -> str:
+    """Normalise TMDB/internal media_type to PlexAPI libtype ('movie' or 'show')."""
+    return "show" if media_type in ("tv", "show", "shows") else "movie"
+
+
 class PlexClient:
     def __init__(self, config: Settings) -> None:
         self._server = PlexServer(config.PLEX_URL, config.PLEX_TOKEN)
@@ -32,9 +37,10 @@ class PlexClient:
 
     def exists_in_any(self, section_names: list[str], title: str, libtype: str) -> bool:
         """Return True if a title exists in any of the given library sections."""
+        plex_type = _plex_libtype(libtype)
         for name in section_names:
             try:
-                if self.get_section(name).search(title=title, libtype=libtype):
+                if self.get_section(name).search(title=title, libtype=plex_type):
                     return True
             except Exception:
                 logger.warning("Could not search Plex library '%s'", name)
@@ -42,7 +48,7 @@ class PlexClient:
 
     def search(self, section_name: str, title: str, libtype: str) -> list:
         section = self.get_section(section_name)
-        return section.search(title=title, libtype=libtype)
+        return section.search(title=title, libtype=_plex_libtype(libtype))
 
     def add_labels(self, item, labels: list[str]) -> None:
         for label in labels:
