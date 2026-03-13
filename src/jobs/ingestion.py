@@ -46,21 +46,33 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
 
     logger.info("Fetching TMDB streaming content...")
     for item in tmdb.fetch_streaming(config.PAGES_PER_PROVIDER):
-        items.append(MediaItem(
-            title=item.title, year=item.year, media_type=item.media_type, tmdb_id=item.tmdb_id,
-            genre_ids=item.genre_ids,
-            labels=item.labels + _genre_labels(item.genre_ids, config),
-            vote_average=item.vote_average, vote_count=item.vote_count,
-        ))
+        items.append(
+            MediaItem(
+                title=item.title,
+                year=item.year,
+                media_type=item.media_type,
+                tmdb_id=item.tmdb_id,
+                genre_ids=item.genre_ids,
+                labels=item.labels + _genre_labels(item.genre_ids, config),
+                vote_average=item.vote_average,
+                vote_count=item.vote_count,
+            )
+        )
 
     logger.info("Fetching TMDB trending content...")
     for item in tmdb.fetch_trending(config.PAGES_PER_PROVIDER):
-        items.append(MediaItem(
-            title=item.title, year=item.year, media_type=item.media_type, tmdb_id=item.tmdb_id,
-            genre_ids=item.genre_ids,
-            labels=item.labels + _genre_labels(item.genre_ids, config),
-            vote_average=item.vote_average, vote_count=item.vote_count,
-        ))
+        items.append(
+            MediaItem(
+                title=item.title,
+                year=item.year,
+                media_type=item.media_type,
+                tmdb_id=item.tmdb_id,
+                genre_ids=item.genre_ids,
+                labels=item.labels + _genre_labels(item.genre_ids, config),
+                vote_average=item.vote_average,
+                vote_count=item.vote_count,
+            )
+        )
 
     trakt = TraktClient(config)
 
@@ -82,36 +94,42 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
         themed_lists = trakt.fetch_couchmoney_lists(config.TRAKT_USERNAME)
         for trakt_list in themed_lists:
             for item in trakt_list.items:
-                items.append(MediaItem(
-                    title=item.title,
-                    year=item.year,
-                    media_type=item.media_type,
-                    labels=[trakt_list.label],
-                ))
+                items.append(
+                    MediaItem(
+                        title=item.title,
+                        year=item.year,
+                        media_type=item.media_type,
+                        labels=[trakt_list.label],
+                    )
+                )
 
     anilist = AniListClient(config)
 
     logger.info("Fetching AniList trending anime...")
     for item in anilist.fetch_trending():
-        items.append(MediaItem(
-            title=item.title,
-            year=item.year,
-            media_type=item.media_type,
-            labels=["Discover_Anime"],
-            anilist_id=item.anilist_id,
-        ))
-
-    # Fetch AniList personalised anime recommendations (requires ANILIST_USERNAME)
-    if config.ANILIST_USERNAME:
-        logger.info("Fetching AniList recommendations for %s...", config.ANILIST_USERNAME)
-        for item in anilist.fetch_recommendations(config.ANILIST_USERNAME):
-            items.append(MediaItem(
+        items.append(
+            MediaItem(
                 title=item.title,
                 year=item.year,
                 media_type=item.media_type,
                 labels=["Discover_Anime"],
                 anilist_id=item.anilist_id,
-            ))
+            )
+        )
+
+    # Fetch AniList personalised anime recommendations (requires ANILIST_USERNAME)
+    if config.ANILIST_USERNAME:
+        logger.info("Fetching AniList recommendations for %s...", config.ANILIST_USERNAME)
+        for item in anilist.fetch_recommendations(config.ANILIST_USERNAME):
+            items.append(
+                MediaItem(
+                    title=item.title,
+                    year=item.year,
+                    media_type=item.media_type,
+                    labels=["Discover_Anime"],
+                    anilist_id=item.anilist_id,
+                )
+            )
 
     # Merge labels for duplicate tmdb_ids (same title appearing in multiple sources)
     merged: dict[int, MediaItem] = {}
@@ -139,21 +157,16 @@ def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
     for item in items:
         # TMDB items carry vote data; Trakt/AniList items are personalised, skip quality gate
         if item.tmdb_id is not None:
-            if (
-                item.vote_count < config.TMDB_MIN_VOTE_COUNT
-                or item.vote_average < config.TMDB_MIN_VOTE_AVERAGE
-            ):
+            if item.vote_count < config.TMDB_MIN_VOTE_COUNT or item.vote_average < config.TMDB_MIN_VOTE_AVERAGE:
                 logger.debug(
                     "Rejected (quality, %.1f/%d votes): %s",
-                    item.vote_average, item.vote_count, item.title,
+                    item.vote_average,
+                    item.vote_count,
+                    item.title,
                 )
                 continue
 
-        real_libs = (
-            config.REAL_MOVIES_LIBS
-            if item.media_type in ("movie", "movies")
-            else config.REAL_SHOWS_LIBS
-        )
+        real_libs = config.REAL_MOVIES_LIBS if item.media_type in ("movie", "movies") else config.REAL_SHOWS_LIBS
         if plex.exists_in_any(real_libs, _base_title(item.title), item.media_type):
             logger.debug("Already in real library, skipping: %s", item.title)
             continue
@@ -164,7 +177,7 @@ def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
     return filtered
 
 
-def apply_labels(items: list[MediaItem], plex: PlexClient, *, with_retry: bool = False) -> None:
+def apply_labels(items: list[MediaItem], plex: PlexClient, *, with_retry: bool = True) -> None:
     """
     Find each item in the Discover library and apply its labels.
 
@@ -231,8 +244,8 @@ def write_dummies(items: list[MediaItem], config: Settings) -> None:
 
 
 _SEASON_SUFFIX_RE = re.compile(
-    r"\s+(?:Season|Part|Cour)\s+\d+.*$"   # "Season 3: ...", "Part 2", "Cour 2"
-    r"|\s+\(\d{4}\)\s*$",                  # trailing "(2011)"
+    r"\s+(?:Season|Part|Cour)\s+\d+.*$"  # "Season 3: ...", "Part 2", "Cour 2"
+    r"|\s+\(\d{4}\)\s*$",  # trailing "(2011)"
     re.IGNORECASE,
 )
 
