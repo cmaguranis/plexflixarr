@@ -23,6 +23,7 @@ services:
       - 'REAL_SHOWS_LIBS=["TV Shows","Anime TV"]'
       - PAGES_PER_PROVIDER=5
       - KOMETA_CONFIG_PATH=/kometa-config
+      - LOG_LEVEL=INFO
     volumes:
       - ${{ sf:"media" }}:/media:shared
       - ${{ sf:"cache" }}:/data:rshared

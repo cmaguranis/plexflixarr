@@ -38,11 +38,19 @@ class MdblistClient:
         scores: dict[int, float] = {}
         for offset in range(0, len(tmdb_ids), _BATCH_SIZE):
             chunk = tmdb_ids[offset : offset + _BATCH_SIZE]
+            logger.debug(
+                "MDBList batch request: media_type=%s rating=%s ids=%s",
+                media_type, rating, chunk,
+            )
             resp = _session.post(
                 f"{_BASE_URL}/{media_type}/{rating}",
                 params={"apikey": self._api_key},
                 json={"ids": chunk, "provider": "tmdb"},
                 timeout=15,
+            )
+            logger.debug(
+                "MDBList response: status=%s body=%s",
+                resp.status_code, resp.text[:500],
             )
             if resp.status_code == 503:
                 body = resp.json() if resp.content else {}

@@ -67,7 +67,10 @@ class ColorFormatter(logging.Formatter):
         return _JOB_RE.sub(_color_job, result)
 
 
-def setup_logging(level: int = logging.INFO) -> None:
+def setup_logging(level: int | None = None) -> None:
+    import os
+    if level is None:
+        level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
     handler = logging.StreamHandler()
     handler.setFormatter(
         ColorFormatter(
