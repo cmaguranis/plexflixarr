@@ -164,52 +164,47 @@ def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
     return filtered
 
 
-def write_dummies(items: list[MediaItem], config: Settings) -> None:
-    """Step 3: Create dummy .mkv files, trigger Plex scan, and apply labels."""
-    ensure_template(config.TEMPLATE_FILE)
-    tagged: list[MediaItem] = []
+def apply_labels(items: list[MediaItem], plex: PlexClient, *, with_retry: bool = False) -> None:
+    """
+    Find each item in the Discover library and apply its labels.
 
-    for item in items:
-        if create_dummy(item.title, item.year, item.media_type, config):
-            tagged.append(item)
+    Items with a TMDB or AniList ID are looked up by ID; Trakt-only items fall back to
+    title search. When with_retry=True, each ID lookup retries up to 3 times with a
+    10-second pause — used immediately after a Plex scan when indexing may lag.
+    Only labels not already present on the item are added.
+    """
+    by_id = [i for i in items if i.tmdb_id is not None or i.anilist_id is not None]
+    by_title = [i for i in items if i.tmdb_id is None and i.anilist_id is None]
 
-    if not tagged:
-        logger.info("No new dummy files created.")
-        return
+    logger.info("Applying Plex labels to %d items (%d by ID, %d by title)...", len(items), len(by_id), len(by_title))
 
-    plex = PlexClient(config)
-    logger.info("Triggering Plex library scans...")
-    plex.refresh_and_wait(_DISCOVER_MOVIES_LIB, _DISCOVER_SHOWS_LIB)
-
-    by_id: list[MediaItem] = []
-    by_title: list[MediaItem] = []
-    for item in tagged:
-        if item.tmdb_id is not None or item.anilist_id is not None:
-            by_id.append(item)
-        else:
-            by_title.append(item)
-
-    logger.info("Applying Plex labels to %d items (%d by ID, %d by title)...", len(tagged), len(by_id), len(by_title))
-
-    def _label(item: MediaItem, results: list) -> None:
-        if results:
-            plex.add_labels(results[0], item.labels)
-        else:
-            logger.warning("Plex item not found after scan: %s", item.title)
-
-    for item in by_id:
+    def _find(item: MediaItem) -> list:
         lib_name, libtype = _lib_and_type(item.media_type)
-        results = None
-        for attempt in range(1, 4):
+        max_attempts = 3 if with_retry else 1
+        for attempt in range(1, max_attempts + 1):
             if item.tmdb_id is not None:
                 results = plex.find_by_tmdb_id(lib_name, item.tmdb_id, libtype)
             else:
                 results = plex.find_by_anilist_id(lib_name, item.anilist_id, libtype)
             if results:
-                break
-            logger.debug("Plex item not yet indexed (attempt %d/3): %s", attempt, item.title)
-            time.sleep(10)
-        _label(item, results)
+                return results
+            logger.debug("Plex item not yet indexed (attempt %d/%d): %s", attempt, max_attempts, item.title)
+            if with_retry:
+                time.sleep(10)
+        return []
+
+    def _label(item: MediaItem, results: list) -> None:
+        if not results:
+            logger.warning("Plex item not found: %s", item.title)
+            return
+        plex_item = results[0]
+        existing = {lbl.tag for lbl in plex_item.labels}
+        missing = [lbl for lbl in item.labels if lbl not in existing]
+        if missing:
+            plex.add_labels(plex_item, missing)
+
+    for item in by_id:
+        _label(item, _find(item))
 
     if by_title:
         logger.info("Looking up %d title-only items by name...", len(by_title))
@@ -218,6 +213,20 @@ def write_dummies(items: list[MediaItem], config: Settings) -> None:
             results = plex.search(lib_name, sanitize_filename(_base_title(item.title)), libtype)
             _label(item, results)
 
+
+def write_dummies(items: list[MediaItem], config: Settings) -> None:
+    """Step 3: Create dummy .mkv files, trigger Plex scan, and apply labels."""
+    ensure_template(config.TEMPLATE_FILE)
+    tagged = [item for item in items if create_dummy(item.title, item.year, item.media_type, config)]
+
+    if not tagged:
+        logger.info("No new dummy files created.")
+        return
+
+    plex = PlexClient(config)
+    logger.info("Triggering Plex library scans...")
+    plex.refresh_and_wait(_DISCOVER_MOVIES_LIB, _DISCOVER_SHOWS_LIB)
+    apply_labels(tagged, plex, with_retry=True)
     logger.info("Ingestion complete.")
 
 
