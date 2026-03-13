@@ -9,7 +9,7 @@ from src.config import Settings
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.mdblist.com/rating"
-_BATCH_SIZE = 200  # API limit per request
+_BATCH_SIZE = 100  # API limit per request
 
 # Retry only on genuine transient errors — not 503, which MDBList uses for rate limiting.
 _retry = Retry(total=3, backoff_factor=2, status_forcelist=[429, 500, 502, 504])
