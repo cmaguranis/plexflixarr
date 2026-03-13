@@ -11,6 +11,7 @@ Custom streaming service discovery injection into Plex. Browse trending content 
 flowchart LR
     TMDB["TMDB API"]
     Trakt["Trakt / Couchmoney"]
+    AniList["AniList\n(anime recs)"]
     MDB["Quality Gate\n(MDBList)"]
     Dummy["dummy .mkv"]
     Scan["Plex scan"]
@@ -18,6 +19,7 @@ flowchart LR
 
     TMDB --> MDB --> Dummy
     Trakt --> Dummy
+    AniList --> Dummy
     Dummy --> Scan --> Label
 
     Label --> SC["Smart Collections"]
@@ -49,6 +51,7 @@ You need the following services running before plexflixarr can operate:
 | **Tautulli** | Watches Plex events and calls the cleanup endpoint |
 | **Kometa** | Reads Plex labels and builds Smart Collection rows (included in `docker-compose.yml`) |
 | **PlexTraktSync** | Syncs your watch history to Trakt (included in `docker-compose.yml`) |
+| **PlexAniSync** | Syncs your anime watch history to AniList for personalised anime recommendations |
 
 ---
 
@@ -71,7 +74,7 @@ curl -s -X POST http://localhost:8742/ingestion/run
 # 5. Trigger cleanup manually (normally called by Tautulli)
 curl -s -X POST http://localhost:8742/dummy_cleanup \
   -H "Content-Type: application/json" \
-  -d '{"media_type": "show", "title": "Stranger Things"}'
+  -d '{"media_type": "episode", "show_name": "Stranger Things"}'
 ```
 
 ### Running via Docker
@@ -246,6 +249,8 @@ PlexTraktSync keeps Trakt's watch history in sync with Plex so Couchmoney genera
    libraries:
      - Movies       # replace with your exact Plex library names
      - TV Shows
+     # Do NOT include your anime library here — AniList (via PlexAniSync) handles anime.
+     # Trakt's anime database is fragmented; mixing it in causes log errors and shallow recs.
    ```
 4. Restart the container:
    ```bash
@@ -258,30 +263,24 @@ PlexTraktSync keeps Trakt's watch history in sync with Plex so Couchmoney genera
 
 Tautulli calls the `POST /dummy_cleanup` endpoint the moment a real file is imported into Plex, removing the corresponding dummy.
 
-Create **two** Script Notification Agents — one for shows, one for movies.
+Create **two** Webhook Notification Agents — one for shows, one for movies.
 
 **Agent 1 — TV Shows:**
 
-1. Tautulli → **Settings** → **Notification Agents** → **Add a new notification agent** → **Script**.
+1. Tautulli → **Settings** → **Notification Agents** → **Add a new notification agent** → **Webhook**.
 2. **Configuration tab:**
-   - Script Folder: any directory (e.g. `/usr/local/bin`).
-   - Script File: a wrapper script that calls the API:
-     ```bash
-     #!/bin/bash
-     curl -s -X POST http://localhost:8742/dummy_cleanup \
-       -H "Content-Type: application/json" \
-       -d "{\"media_type\": \"$1\", \"title\": \"$2\"}"
-     ```
+   - **Webhook URL:** `http://localhost:8742/dummy_cleanup`
+   - **Webhook Method:** `POST`
    - Description: `Cleanup Dummy Shows`
 3. **Triggers tab:** check **Recently Added**.
 4. **Conditions tab:**
    - `Library Name` **is** `<your real TV library name>` (e.g. `TV Shows`)
    - This prevents the agent from firing when the ingestion service adds dummy files.
-5. **Arguments tab** → expand **Recently Added**:
+5. **Data tab** → expand **Recently Added** → paste into the **JSON Data** field:
+   ```json
+   {"media_type": "{media_type}", "title": "{title}", "show_name": "{show_name}"}
    ```
-   show "{show_name}"
-   ```
-   The quotes around `{show_name}` are mandatory for multi-word titles.
+   Tautulli sends `{media_type}` as `"episode"` for TV events. The endpoint uses `show_name` when `media_type` is `"episode"` and `title` when it is `"movie"`.
 6. **Save**.
 
 **Agent 2 — Movies:**
@@ -289,9 +288,9 @@ Create **two** Script Notification Agents — one for shows, one for movies.
 Repeat the above with:
 - Description: `Cleanup Dummy Movies`
 - Condition: `Library Name` **is** `<your real Movies library name>` (e.g. `Movies`)
-- Arguments:
-  ```
-  movie "{title}"
+- JSON Data (same payload — `show_name` will be empty and is ignored for movies):
+  ```json
+  {"media_type": "{media_type}", "title": "{title}", "show_name": "{show_name}"}
   ```
 
 ---
@@ -316,6 +315,8 @@ Sonarr and Radarr must notify Plex immediately on import so Tautulli picks up th
 | `PLEX_TOKEN` | Yes | — | Plex authentication token |
 | `TMDB_API_KEY` | Yes | — | TMDB v3 API key |
 | `TRAKT_CLIENT_ID` | Yes | — | Trakt application Client ID |
+| `ANILIST_USERNAME` | No | — | AniList username — enables "Recommended Anime" home row |
+| `ANILIST_RECS_PER_ENTRY` | No | `3` | Community recommendations fetched per completed anime title |
 | `MDBLIST_API_KEY` | Yes | — | MDBList API key (quality gate) |
 | `MDBLIST_MIN_TRAKT` | No | `70` | Minimum Trakt score to pass |
 | `MDBLIST_MIN_RATING` | No | `60` | Minimum Rotten Tomatoes score to pass |
@@ -340,6 +341,7 @@ src/
     plex_client.py        plexapi wrapper
     tmdb_client.py        TMDB /discover API
     mdblist_client.py     MDBList quality gate (Trakt / RT ratings)
+    anilist_client.py     AniList GraphQL recommendations
     trakt_client.py       Trakt / Couchmoney recommendations
   jobs/
     ingestion.py          Three-step pipeline: fetch → filter → write

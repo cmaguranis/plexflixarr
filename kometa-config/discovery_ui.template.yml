@@ -36,9 +36,13 @@ collections:
     template: {name: discovery_row, label_name: Discover_Recs, sort_prefix: 01}
     summary: Personalised Couchmoney recommendations based on your watch history.
 
+  Recommended Anime:
+    template: {name: discovery_row, label_name: Discover_Anime, sort_prefix: 02}
+    summary: Personalised anime recommendations from AniList based on your watch history.
+
   # ── Trending ──────────────────────────────────────────────────────────────
   Trending This Week:
-    template: {name: discovery_row, label_name: Discover_Trending, sort_prefix: 02}
+    template: {name: discovery_row, label_name: Discover_Trending, sort_prefix: 03}
     summary: Globally trending movies and TV shows this week.
 
   # ── Streaming providers ───────────────────────────────────────────────────

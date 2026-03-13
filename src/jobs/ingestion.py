@@ -2,6 +2,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 
+from src.clients.anilist_client import AniListClient
 from src.clients.mdblist_client import MdblistClient
 from src.clients.plex_client import PlexClient
 from src.clients.tmdb_client import TmdbClient
@@ -83,6 +84,28 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
                     media_type=item.media_type,
                     labels=[trakt_list.label],
                 ))
+
+    anilist = AniListClient(config)
+
+    logger.info("Fetching AniList trending anime...")
+    for item in anilist.fetch_trending():
+        items.append(MediaItem(
+            title=item.title,
+            year=item.year,
+            media_type=item.media_type,
+            labels=["Discover_Anime"],
+        ))
+
+    # Fetch AniList personalised anime recommendations (requires ANILIST_USERNAME)
+    if config.ANILIST_USERNAME:
+        logger.info("Fetching AniList recommendations for %s...", config.ANILIST_USERNAME)
+        for item in anilist.fetch_recommendations(config.ANILIST_USERNAME):
+            items.append(MediaItem(
+                title=item.title,
+                year=item.year,
+                media_type=item.media_type,
+                labels=["Discover_Anime"],
+            ))
 
     # Merge labels for duplicate tmdb_ids (same title appearing in multiple sources)
     merged: dict[int, MediaItem] = {}

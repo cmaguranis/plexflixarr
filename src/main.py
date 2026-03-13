@@ -28,8 +28,9 @@ ingestion_router = APIRouter(prefix="/ingestion")
 
 
 class CleanupRequest(BaseModel):
-    media_type: str  # "show" or "movie"
+    media_type: str  # "episode" or "movie"
     title: str
+    show_name: str | None = None
 
 
 @app.get("/health")
@@ -64,5 +65,5 @@ app.include_router(ingestion_router)
 
 @app.post("/dummy_cleanup")
 def trigger_cleanup(body: CleanupRequest, background_tasks: BackgroundTasks) -> dict:
-    background_tasks.add_task(cleanup.run, body.media_type, body.title)
+    background_tasks.add_task(cleanup.run, body.media_type, body.title, body.show_name)
     return {"status": "started", "media_type": body.media_type, "title": body.title}

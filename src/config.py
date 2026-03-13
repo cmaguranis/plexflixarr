@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     TRAKT_CLIENT_ID: str = ""
     TRAKT_USERNAME: str = ""  # Required for Couchmoney themed list discovery
 
+    # AniList
+    ANILIST_USERNAME: str = ""        # Required for personalised anime recommendations
+    ANILIST_RECS_PER_ENTRY: int = 3   # Recommendations fetched per completed anime title
+
     # MDBList quality gate
     MDBLIST_API_KEY: str = ""
     MDBLIST_MIN_TRAKT: int = 70

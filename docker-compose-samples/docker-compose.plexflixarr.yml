@@ -16,6 +16,8 @@ services:
       - TMDB_API_KEY=
       - TRAKT_CLIENT_ID=
       - TRAKT_USERNAME=cmaguranis
+      - ANILIST_USERNAME=cmaguranis
+      - ANILIST_RECS_PER_ENTRY=3
       - MDBLIST_API_KEY=
       - MDBLIST_MIN_TRAKT=40
       - MDBLIST_MIN_RATING=40
