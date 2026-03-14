@@ -12,14 +12,15 @@ flowchart LR
     TMDB["TMDB API"]
     Trakt["Trakt / Couchmoney"]
     AniList["AniList\n(anime recs)"]
-    MDB["Quality Gate\n(MDBList)"]
-    Dummy["dummy .mkv"]
+    Fribb["Fribb anime-lists\n(AniList→TMDb IDs)"]
+    Quality["Quality Gate\n(TMDB votes)"]
+    Dummy["dummy .mkv\nTitle (Year) {tmdb-N}"]
     Scan["Plex scan"]
     Label["Plex label"]
 
-    TMDB --> MDB --> Dummy
+    TMDB --> Quality --> Dummy
     Trakt --> Dummy
-    AniList --> Dummy
+    AniList --> Fribb --> Dummy
     Dummy --> Scan --> Label
 
     Label --> SC["Smart Collections"]
@@ -29,9 +30,9 @@ flowchart LR
     Watchlist["User Watchlist"] --> Seerr
     Seerr --> SR["Sonarr / Radarr"]
     SR --> Real["real file imported"]
-    Real --> Tautulli["Tautulli cleanup"]
-    Tautulli --> Del["dummy deleted"]
-    Tautulli --> Gone["poster vanishes"]
+    Real -- "Download webhook" --> Cleanup["plexflixarr\n/discover/arr/cleanup"]
+    Cleanup --> Del["dummy deleted"]
+    Cleanup --> Gone["poster vanishes"]
 ```
 
 **Key constraint:** Kometa only organises items already in the Plex library. All content population is handled by the ingestion service — Kometa never triggers downloads.
@@ -48,7 +49,6 @@ You need the following services running before plexflixarr can operate:
 | **Sonarr** | Downloads and manages TV shows |
 | **Radarr** | Downloads and manages movies |
 | **Seerr** | Converts Plex Watchlist additions into Sonarr/Radarr requests |
-| **Tautulli** | Watches Plex events and calls the cleanup endpoint |
 | **Kometa** | Reads Plex labels and builds Smart Collection rows (included in `docker-compose.yml`) |
 | **PlexTraktSync** | Syncs your watch history to Trakt (included in `docker-compose.yml`) |
 | **PlexAniSync** | Syncs your anime watch history to AniList for personalised anime recommendations |
@@ -70,11 +70,6 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 8742
 
 # 4. Trigger ingestion
 curl -s -X POST http://localhost:8742/ingestion/run
-
-# 5. Trigger cleanup manually (normally called by Tautulli)
-curl -s -X POST http://localhost:8742/dummy_cleanup \
-  -H "Content-Type: application/json" \
-  -d '{"media_type": "episode", "show_name": "Stranger Things"}'
 ```
 
 ### Running via Docker
@@ -102,9 +97,12 @@ Add to your host crontab (`crontab -e`):
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/health` | Service health check |
+| `GET` | `/config/env` | Dump current resolved settings |
 | `POST` | `/ingestion/fetch` | Fetch raw candidates from TMDB + Trakt (no filtering, no file writes) |
 | `POST` | `/ingestion/run` | Run the full ingestion pipeline in the background |
-| `POST` | `/dummy_cleanup` | Delete a dummy file and remove it from Plex |
+| `POST` | `/discover/arr/cleanup` | Receives Radarr/Sonarr Download webhooks — deletes the matching dummy |
+| `POST` | `/dummy/dedupe` | Remove discover-library dummies that already exist in real Plex libraries |
+| `POST` | `/discover/label` | Re-apply missing `Discover_*` labels to unlabelled items in Discover libraries |
 
 ### Inspect fetched candidates
 
@@ -129,7 +127,7 @@ curl -s -X POST http://localhost:8742/ingestion/fetch \
 5. Fill out the brief form (e.g. "Personal script to organise my home media server").
 6. Copy the **API Key (v3 auth)**.
 
-**Where it goes:** `TMDB_API_KEY` in `.env`.
+**Where it goes:** `TMDB_API_KEY` in `.env` and `tmdb.apikey` in `kometa-config/config.yml`.
 
 ---
 
@@ -147,6 +145,8 @@ curl -s -X POST http://localhost:8742/ingestion/fetch \
 
 **Where it goes:** `TRAKT_CLIENT_ID` in `.env`.
 
+**Optional:** Set `TRAKT_USERNAME` to enable Couchmoney personalised list discovery.
+
 ---
 
 ### 3. Couchmoney.tv
@@ -162,23 +162,7 @@ The service uses `recommendations-movies` and `recommendations-shows` by default
 
 ---
 
-### 4. MDBList
-
-**Purpose:** Quality gate. Every item fetched from TMDB is checked against MDBList's rating database (Trakt score and Rotten Tomatoes) before a dummy file is created. Free tier allows 1,000 lookups per day, which comfortably covers a nightly run.
-
-1. Go to [mdblist.com](https://mdblist.com/) and create a free account.
-2. Click your profile icon → **API Key** (or navigate to Settings → API).
-3. Copy your API key.
-
-**Where it goes:** `MDBLIST_API_KEY` in `.env`.
-
-Thresholds (defaults: Trakt ≥ 70 or RT ≥ 60):
-- `MDBLIST_MIN_TRAKT` — minimum Trakt score (0–100)
-- `MDBLIST_MIN_RATING` — minimum Rotten Tomatoes score (0–100)
-
----
-
-### 5. Local Server Credentials
+### 4. Local Server Credentials
 
 #### Plex Token
 
@@ -190,7 +174,7 @@ Thresholds (defaults: Trakt ≥ 70 or RT ≥ 60):
 
 ---
 
-### 6. Plex Library Setup
+### 5. Plex Library Setup
 
 Create two new libraries to hold dummy files, isolated from your real media.
 
@@ -201,7 +185,7 @@ Create two new libraries to hold dummy files, isolated from your real media.
 
 ---
 
-### 7. Seerr
+### 6. Seerr
 
 Seerr must be blind to the discovery libraries so it treats Watchlist requests as genuinely missing media.
 
@@ -211,13 +195,14 @@ Seerr must be blind to the discovery libraries so it treats Watchlist requests a
 
 ---
 
-### 8. Kometa
+### 7. Kometa
 
 Kometa reads Plex labels applied by the ingestion service and builds Smart Collections pinned to the Plex home screen.
 
 1. Update `kometa-config/config.yml`:
    - Set `plex.url` to your Plex server address (e.g. `http://192.168.1.100:32400`).
    - Set `plex.token` to your Plex token.
+   - Set `tmdb.apikey` to your TMDB v3 API key.
 2. **Overlay badge:** Replace the placeholder PNG at `kometa-config/assets/overlays/request_needed_icon.png` with a transparent PNG of your preferred "Request Needed" badge design.
 3. Start Kometa via Docker:
    ```bash
@@ -229,7 +214,7 @@ Collections defined in `kometa-config/discovery_ui.yml` will appear as horizonta
 
 ---
 
-### 9. PlexTraktSync
+### 8. PlexTraktSync
 
 PlexTraktSync keeps Trakt's watch history in sync with Plex so Couchmoney generates accurate recommendations.
 
@@ -259,51 +244,21 @@ PlexTraktSync keeps Trakt's watch history in sync with Plex so Couchmoney genera
 
 ---
 
-### 10. Tautulli — Cleanup Trigger
+### 9. Sonarr / Radarr — Cleanup Webhook
 
-Tautulli calls the `POST /dummy_cleanup` endpoint the moment a real file is imported into Plex, removing the corresponding dummy.
+Sonarr and Radarr call the `/discover/arr/cleanup` endpoint the moment a file is imported or upgraded, removing the corresponding dummy placeholder.
 
-Create **two** Webhook Notification Agents — one for shows, one for movies.
+**Radarr:**
+1. **Settings** → **Connect** → **+** → **Webhook**.
+2. **Name:** `plexflixarr cleanup`
+3. **URL:** `http://<plexflixarr-host>:8742/discover/arr/cleanup`
+4. **Method:** `POST`
+5. Enable **On Import** and **On Upgrade**. Leave all other triggers off.
+6. Save, then use **Test** — you should get `{"status":"ok","reason":"test event"}`.
 
-**Agent 1 — TV Shows:**
+**Sonarr:** repeat the same steps.
 
-1. Tautulli → **Settings** → **Notification Agents** → **Add a new notification agent** → **Webhook**.
-2. **Configuration tab:**
-   - **Webhook URL:** `http://localhost:8742/dummy_cleanup`
-   - **Webhook Method:** `POST`
-   - Description: `Cleanup Dummy Shows`
-3. **Triggers tab:** check **Recently Added**.
-4. **Conditions tab:**
-   - `Library Name` **is** `<your real TV library name>` (e.g. `TV Shows`)
-   - This prevents the agent from firing when the ingestion service adds dummy files.
-5. **Data tab** → expand **Recently Added** → paste into the **JSON Data** field:
-   ```json
-   {"media_type": "{media_type}", "title": "{title}", "show_name": "{show_name}"}
-   ```
-   Tautulli sends `{media_type}` as `"episode"` for TV events. The endpoint uses `show_name` when `media_type` is `"episode"` and `title` when it is `"movie"`.
-6. **Save**.
-
-**Agent 2 — Movies:**
-
-Repeat the above with:
-- Description: `Cleanup Dummy Movies`
-- Condition: `Library Name` **is** `<your real Movies library name>` (e.g. `Movies`)
-- JSON Data (same payload — `show_name` will be empty and is ignored for movies):
-  ```json
-  {"media_type": "{media_type}", "title": "{title}", "show_name": "{show_name}"}
-  ```
-
----
-
-### 11. Sonarr / Radarr — Plex Notification
-
-Sonarr and Radarr must notify Plex immediately on import so Tautulli picks up the event.
-
-1. **Sonarr** → **Settings** → **Connect** → **+** → **Plex Media Server**.
-   - Enter your Plex server address and authenticate.
-   - Enable **On Import** and **On Upgrade**.
-   - Save.
-2. Repeat in **Radarr**.
+The webhook payload is the standard Radarr/Sonarr Download event body. The service reads `movie.title` for movies and `series.title` for shows to locate and delete the dummy folder.
 
 ---
 
@@ -315,17 +270,21 @@ Sonarr and Radarr must notify Plex immediately on import so Tautulli picks up th
 | `PLEX_TOKEN` | Yes | — | Plex authentication token |
 | `TMDB_API_KEY` | Yes | — | TMDB v3 API key |
 | `TRAKT_CLIENT_ID` | Yes | — | Trakt application Client ID |
-| `ANILIST_USERNAME` | No | — | AniList username — enables "Recommended Anime" home row |
+| `TRAKT_USERNAME` | No | — | Trakt username — enables Couchmoney personalised lists |
+| `ANILIST_USERNAME` | No | — | AniList username — enables personalised anime recommendations |
 | `ANILIST_RECS_PER_ENTRY` | No | `3` | Community recommendations fetched per completed anime title |
-| `MDBLIST_API_KEY` | Yes | — | MDBList API key (quality gate) |
-| `MDBLIST_MIN_TRAKT` | No | `70` | Minimum Trakt score to pass |
-| `MDBLIST_MIN_RATING` | No | `60` | Minimum Rotten Tomatoes score to pass |
+| `TMDB_MIN_VOTE_AVERAGE` | No | `6.0` | Minimum TMDB vote average (0–10) to pass the quality gate |
+| `TMDB_MIN_VOTE_COUNT` | No | `100` | Minimum TMDB vote count to pass the quality gate |
+| `EXCLUDED_LANGUAGES` | No | `["hi","ta","te","ml","kn","bn","mr"]` | ISO 639-1 codes to exclude from TMDB results |
 | `DISCOVER_MOVIES_PATH` | Yes | — | Absolute path to discovery movies folder |
 | `DISCOVER_SHOWS_PATH` | Yes | — | Absolute path to discovery shows folder |
 | `REAL_MOVIES_LIBS` | No | `["Movies","Anime Movies"]` | Plex library names to check for existing movies |
 | `REAL_SHOWS_LIBS` | No | `["TV Shows","Anime TV"]` | Plex library names to check for existing shows |
-| `TEMPLATE_FILE` | No | `assets/dummy.mkv` | Path to 1-second dummy video |
-| `PAGES_PER_PROVIDER` | No | `5` | TMDB pages per provider per type (20 items/page) |
+| `PAGES_PER_PROVIDER` | No | `5` | TMDB pages fetched per provider per media type (20 items/page) |
+| `TEMPLATE_FILE` | No | `assets/dummy.mkv` | Path to 1-second dummy video template |
+| `KOMETA_CONFIG_PATH` | No | `kometa-config` | Directory where `discovery_ui.yml` is written |
+
+See [EXCLUDE_GUIDE.md](EXCLUDE_GUIDE.md) for detailed guidance on tuning the quality gate, language filters, streaming providers, and genre labels.
 
 ---
 
@@ -333,19 +292,23 @@ Sonarr and Radarr must notify Plex immediately on import so Tautulli picks up th
 
 ```
 src/
-  main.py                 FastAPI app — ingestion and cleanup endpoints
+  main.py                 FastAPI app — all HTTP endpoints
   config.py               Pydantic settings (reads from .env)
   dummy.py                ffmpeg template generation, dummy file fs ops
   logging_config.py       Colour terminal formatter
   clients/
     plex_client.py        plexapi wrapper
-    tmdb_client.py        TMDB /discover API
-    mdblist_client.py     MDBList quality gate (Trakt / RT ratings)
-    anilist_client.py     AniList GraphQL recommendations
+    tmdb_client.py        TMDB /discover and /trending API
     trakt_client.py       Trakt / Couchmoney recommendations
+    anilist_client.py     AniList GraphQL recommendations
+    anime_list_client.py  Fribb anime-lists AniList→TMDb ID mapping
+    mdblist_client.py     MDBList ratings lookup (optional, not wired into ingestion)
   jobs/
     ingestion.py          Three-step pipeline: fetch → filter → write
-    cleanup.py            Tautulli-triggered cleanup
+    cleanup.py            Radarr/Sonarr webhook handler — deletes dummies
+    dedupe.py             Removes dummies that already exist in real libraries
+    label.py              Re-applies missing Discover_* labels
+    kometa_config.py      Generates discovery_ui.yml for Kometa
     queue.py              SQLite job queue
     schedule.py           JSON-backed enable/disable flag
 kometa-config/

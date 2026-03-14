@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, FastAPI
 
 from src.config import Settings
 from src.dummy import ensure_template
-from src.jobs import cleanup, dedupe, ingestion, label
+from src.jobs import cleanup, dedupe, ingestion, kometa_config, label
 from src.jobs.ingestion import MediaItem, fetch_media
 from src.logging_config import setup_logging
 
@@ -15,7 +15,11 @@ setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ensure_template(Settings().TEMPLATE_FILE)
+    config = Settings()
+    ensure_template(config.TEMPLATE_FILE)
+    discovery_ui = config.KOMETA_CONFIG_PATH / "discovery_ui.yml"
+    if not discovery_ui.exists():
+        kometa_config.generate([], output_dir=config.KOMETA_CONFIG_PATH)
     yield
 
 
