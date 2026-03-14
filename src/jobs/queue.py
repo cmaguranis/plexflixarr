@@ -48,8 +48,7 @@ class JobQueue:
                     except Exception:
                         pass  # column already exists
                 conn.execute(
-                    f"UPDATE {self._table} SET status='pending', updated_at=CURRENT_TIMESTAMP"
-                    " WHERE status='processing'"
+                    f"UPDATE {self._table} SET status='pending', updated_at=CURRENT_TIMESTAMP WHERE status='processing'"
                 )
                 conn.commit()
             finally:
@@ -61,8 +60,7 @@ class JobQueue:
             conn = self._connect()
             try:
                 cur = conn.execute(
-                    f"INSERT OR IGNORE INTO {self._table}"
-                    " (path, meta, status, priority) VALUES (?, ?, 'pending', ?)",
+                    f"INSERT OR IGNORE INTO {self._table} (path, meta, status, priority) VALUES (?, ?, 'pending', ?)",
                     (path, json.dumps(meta), priority),
                 )
                 conn.commit()
@@ -103,27 +101,21 @@ class JobQueue:
     def mark_failed(self, job_id: int, error: str | None = None):
         self._set_status(job_id, "failed", error=error)
 
-    def _set_status(
-        self, job_id: int, status: str, meta_update: dict | None = None, error: str | None = None
-    ):
+    def _set_status(self, job_id: int, status: str, meta_update: dict | None = None, error: str | None = None):
         with self._lock:
             conn = self._connect()
             try:
                 if meta_update:
-                    row = conn.execute(
-                        f"SELECT meta FROM {self._table} WHERE id=?", (job_id,)
-                    ).fetchone()
+                    row = conn.execute(f"SELECT meta FROM {self._table} WHERE id=?", (job_id,)).fetchone()
                     meta = json.loads((row["meta"] if row else None) or "{}")
                     meta.update(meta_update)
                     conn.execute(
-                        f"UPDATE {self._table} SET status=?, meta=?, error=?,"
-                        " updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                        f"UPDATE {self._table} SET status=?, meta=?, error=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                         (status, json.dumps(meta), error, job_id),
                     )
                 else:
                     conn.execute(
-                        f"UPDATE {self._table} SET status=?, error=?,"
-                        " updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                        f"UPDATE {self._table} SET status=?, error=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                         (status, error, job_id),
                     )
                 conn.commit()
@@ -149,9 +141,7 @@ class JobQueue:
                         (status,),
                     ).fetchall()
                 else:
-                    rows = conn.execute(
-                        f"SELECT * FROM {self._table} ORDER BY updated_at DESC"
-                    ).fetchall()
+                    rows = conn.execute(f"SELECT * FROM {self._table} ORDER BY updated_at DESC").fetchall()
                 return [dict(r) for r in rows]
             finally:
                 conn.close()
@@ -161,9 +151,7 @@ class JobQueue:
         with self._lock:
             conn = self._connect()
             try:
-                row = conn.execute(
-                    f"SELECT meta, status FROM {self._table} WHERE id=?", (job_id,)
-                ).fetchone()
+                row = conn.execute(f"SELECT meta, status FROM {self._table} WHERE id=?", (job_id,)).fetchone()
                 if not row:
                     return False
                 if row["status"] == "processing":
@@ -171,8 +159,7 @@ class JobQueue:
                 meta = json.loads(row["meta"] or "{}")
                 meta["dry_run"] = dry_run
                 conn.execute(
-                    f"UPDATE {self._table} SET status='pending', meta=?,"
-                    " updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    f"UPDATE {self._table} SET status='pending', meta=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                     (json.dumps(meta), job_id),
                 )
                 conn.commit()

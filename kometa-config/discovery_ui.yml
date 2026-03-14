@@ -1,9 +1,5 @@
 # Kometa collection and overlay definitions for the discovery libraries.
 #
-# !! DO NOT EDIT discovery_ui.yml DIRECTLY !!
-# Edit this template instead. The ingestion service regenerates discovery_ui.yml
-# on every run by rendering this file with the current Couchmoney themed lists.
-#
 # The Python ingestion script creates dummy media files and applies Plex labels
 # (e.g. Discover_Netflix, Discover_Recs). Kometa reads those labels here and
 # builds Smart Collections pinned to the Plex home screen.
@@ -13,30 +9,47 @@
 
 templates:
   discovery_row:
-    # Smart Collection scoped to a single Plex label applied by the ingest script
     smart_filter:
       validate: false
       all:
         label: <<label_name>>
+      sort_by: audience_rating.desc
     sort_title: <<sort_prefix>>_<<collection_name>>
     sync_mode: sync
-    # Pins this collection as a horizontal row on the Plex home screen.
+    visible_home: true
+    limit: 20
+
+  discovery_genre_row:
+    smart_filter:
+      validate: false
+      all:
+        label: <<label_name>>
+        label.not: Discover_Anime
+      sort_by: audience_rating.desc
+    sort_title: <<sort_prefix>>_<<collection_name>>
+    sync_mode: sync
     visible_home: true
     limit: 20
 
 collections:
   # ── Personalised rows ─────────────────────────────────────────────────────
-  Coming Soon (Requested):
-    template: {name: discovery_row, label_name: Coming_Soon, sort_prefix: 00}
-    summary: Media currently queued in Radarr and Sonarr awaiting release or download.
-
   Recommended for Me:
     template: {name: discovery_row, label_name: Discover_Recs, sort_prefix: 01}
     summary: Personalised Couchmoney recommendations based on your watch history.
 
-  Recommended Anime:
-    template: {name: discovery_row, label_name: Discover_Anime, sort_prefix: 02}
-    summary: Personalised anime recommendations from AniList based on your watch history.
+  Anime & Animation:
+    smart_filter:
+      validate: false
+      any:
+        label:
+          - Discover_Anime
+          - Discover_Animation
+      sort_by: audience_rating.desc
+    sort_title: 02_Anime & Animation
+    sync_mode: sync
+    visible_home: true
+    limit: 20
+    summary: Personalised anime from AniList and trending animated titles.
 
   # ── Trending ──────────────────────────────────────────────────────────────
   Trending This Week:
@@ -50,53 +63,45 @@ collections:
   Trending on Apple TV+:
     template: {name: discovery_row, label_name: Discover_AppleTV, sort_prefix: 11}
 
-  Trending on Max:
-    template: {name: discovery_row, label_name: Discover_Max, sort_prefix: 12}
+  Trending on Disney+:
+    template: {name: discovery_row, label_name: Discover_Disney, sort_prefix: 12}
 
   Trending on Hulu:
     template: {name: discovery_row, label_name: Discover_Hulu, sort_prefix: 13}
 
-  Trending on AMC:
-    template: {name: discovery_row, label_name: Discover_AMC, sort_prefix: 14}
-
   Trending on Crunchyroll:
-    template: {name: discovery_row, label_name: Discover_Crunchyroll, sort_prefix: 15}
+    template: {name: discovery_row, label_name: Discover_Crunchyroll, sort_prefix: 14}
 
-  Trending on Disney+:
-    template: {name: discovery_row, label_name: Discover_Disney, sort_prefix: 16}
+  Trending on Max:
+    template: {name: discovery_row, label_name: Discover_Max, sort_prefix: 15}
+
+  Trending on AMC:
+    template: {name: discovery_row, label_name: Discover_AMC, sort_prefix: 16}
 
   Trending on Adult Swim:
     template: {name: discovery_row, label_name: Discover_AdultSwim, sort_prefix: 17}
 
   # ── By genre ──────────────────────────────────────────────────────────────
   Popular Action:
-    template: {name: discovery_row, label_name: Discover_Action, sort_prefix: 20}
-
-  Popular Comedy:
-    template: {name: discovery_row, label_name: Discover_Comedy, sort_prefix: 21}
+    template: {name: discovery_genre_row, label_name: Discover_Action, sort_prefix: 20}
 
   Popular Drama:
-    template: {name: discovery_row, label_name: Discover_Drama, sort_prefix: 22}
+    template: {name: discovery_genre_row, label_name: Discover_Drama, sort_prefix: 22}
 
   Popular Horror:
-    template: {name: discovery_row, label_name: Discover_Horror, sort_prefix: 23}
+    template: {name: discovery_genre_row, label_name: Discover_Horror, sort_prefix: 23}
 
   Popular Sci-Fi:
-    template: {name: discovery_row, label_name: Discover_SciFi, sort_prefix: 24}
+    template: {name: discovery_genre_row, label_name: Discover_SciFi, sort_prefix: 24}
 
-  Popular Romance:
-    template: {name: discovery_row, label_name: Discover_Romance, sort_prefix: 25}
-
-  Popular Animation:
-    template: {name: discovery_row, label_name: Discover_Animation, sort_prefix: 26}
+  Popular Comedy:
+    template: {name: discovery_genre_row, label_name: Discover_Comedy, sort_prefix: 25}
 
   Popular Documentary:
-    template: {name: discovery_row, label_name: Discover_Documentary, sort_prefix: 27}
+    template: {name: discovery_genre_row, label_name: Discover_Documentary, sort_prefix: 27}
 
-  # ── Couchmoney themed collections (dynamically generated) ─────────────────
-  # Populated by the ingestion service from TRAKT_USERNAME's Couchmoney lists.
-  # Sort prefixes 30+ are reserved for these dynamic rows.
-
+  Popular Romance:
+    template: {name: discovery_genre_row, label_name: Discover_Romance, sort_prefix: 28}
 
 overlays:
   # ── "Request Needed" text badge (top of poster) ───────────────────────────
@@ -111,7 +116,7 @@ overlays:
       vertical_align: top
     plex_search:
       any:
-        label.beginsWith: Discover_
+        label: Overlay
 
   Request Needed Text:
     overlay:
@@ -124,9 +129,97 @@ overlays:
       font_color: "#FFFFFF"
     plex_search:
       any:
-        label.beginsWith: Discover_
+        label: Overlay
 
-  # Streaming service logo overlays (bottom-left) are handled by:
-  #   config.yml → overlay_files → default: streaming
-  # Kometa applies the correct service logo automatically based on each item's
-  # JustWatch/TMDB streaming availability metadata.
+  # ── Streaming service logo overlays (bottom-left) ────────────────────────────
+  # Applied locally from Plex labels — no TMDB/TVDb API calls required.
+  # Kometa fetches logo PNGs from its own GitHub repo via the path-based name.
+
+  Streaming Netflix:
+    overlay:
+      name: streaming/color/Netflix
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Netflix
+
+  Streaming Apple TV+:
+    overlay:
+      name: streaming/color/Apple TV Plus
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_AppleTV
+
+  Streaming Max:
+    overlay:
+      name: streaming/color/Max
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Max
+
+  Streaming Hulu:
+    overlay:
+      name: streaming/color/Hulu
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Hulu
+
+  Streaming AMC+:
+    overlay:
+      name: streaming/color/AMC Plus
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_AMC
+
+  Streaming Crunchyroll:
+    overlay:
+      name: streaming/color/Crunchyroll
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Crunchyroll
+
+  Streaming Disney+:
+    overlay:
+      name: streaming/color/Disney Plus
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Disney
+
+  Streaming Adult Swim:
+    overlay:
+      name: network/color/Adult Swim
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_AdultSwim
+

@@ -14,9 +14,7 @@ def test_refresh_and_wait_polls_until_done(config, mock_plex_server):
     # First call: still refreshing; second call: done
     section.refreshing = False  # initial state after update()
     # Simulate the server returning refreshing=True then False
-    type(section).refreshing = property(
-        lambda self, _calls=iter([True, True, False]): next(_calls, False)
-    )
+    type(section).refreshing = property(lambda self, _calls=iter([True, True, False]): next(_calls, False))
     with patch("src.clients.plex_client.time.sleep"):
         client = PlexClient(config)
         client.refresh_and_wait("Discover Movies")
@@ -25,9 +23,7 @@ def test_refresh_and_wait_polls_until_done(config, mock_plex_server):
 def test_search_calls_section_search(config, mock_plex_server):
     client = PlexClient(config)
     client.search("Discover Movies", "Inception", "movie")
-    mock_plex_server.library.section.return_value.search.assert_called_once_with(
-        title="Inception", libtype="movie"
-    )
+    mock_plex_server.library.section.return_value.search.assert_called_once_with(title="Inception", libtype="movie")
 
 
 def test_add_labels_calls_addLabel_per_label(config, mock_plex_server):

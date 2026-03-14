@@ -6,10 +6,10 @@ from src.clients.anilist_client import AniListClient
 from src.clients.anime_list_client import resolve_tmdb_id
 from src.clients.plex_client import PlexClient
 from src.clients.tmdb_client import TmdbClient
-from src.clients.trakt_client import TraktClient, TraktList
+from src.clients.trakt_client import TraktClient
 from src.config import Settings
 from src.dummy import create_dummy, ensure_template
-from src.jobs import kometa_config
+from src.jobs import discovery_order
 from src.jobs.schedule import Schedule
 
 logger = logging.getLogger(__name__)
@@ -33,14 +33,8 @@ class MediaItem:
     vote_count: int = 0
 
 
-def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
-    """
-    Step 1: Fetch raw candidates from TMDB and Trakt.
-
-    Returns a tuple of:
-      - deduped MediaItem list for the ingestion pipeline
-      - TraktList list for Kometa config generation (Couchmoney themed rows)
-    """
+def fetch_media(config: Settings) -> list[MediaItem]:
+    """Step 1: Fetch raw candidates from TMDB, Trakt, and AniList."""
     items: list[MediaItem] = []
 
     tmdb = TmdbClient(config)
@@ -91,19 +85,16 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
             )
         )
 
-    # Fetch Couchmoney themed lists (requires TRAKT_USERNAME)
-    themed_lists: list[TraktList] = []
     if config.TRAKT_USERNAME:
         logger.info("Fetching Couchmoney themed lists for %s...", config.TRAKT_USERNAME)
-        themed_lists = trakt.fetch_couchmoney_lists(config.TRAKT_USERNAME)
-        for trakt_list in themed_lists:
+        for trakt_list in trakt.fetch_couchmoney_lists(config.TRAKT_USERNAME):
             for item in trakt_list.items:
                 items.append(
                     MediaItem(
                         title=item.title,
                         year=item.year,
                         media_type=item.media_type,
-                        labels=[trakt_list.label],
+                        labels=["Discover_Recs"],
                         tmdb_id=item.tmdb_id,
                     )
                 )
@@ -156,7 +147,7 @@ def fetch_media(config: Settings) -> tuple[list[MediaItem], list[TraktList]]:
     deduped = list(merged.values()) + trakt_items
 
     logger.info("Fetched %d candidates (%d after dedup).", len(items), len(deduped))
-    return deduped, themed_lists
+    return deduped
 
 
 def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
@@ -170,15 +161,16 @@ def filter_media(items: list[MediaItem], config: Settings) -> list[MediaItem]:
             continue
 
         # TMDB items carry vote data; Trakt/AniList items are personalised, skip quality gate
-        if item.tmdb_id is not None:
-            if item.vote_count < config.TMDB_MIN_VOTE_COUNT or item.vote_average < config.TMDB_MIN_VOTE_AVERAGE:
-                logger.debug(
-                    "Rejected (quality, %.1f/%d votes): %s",
-                    item.vote_average,
-                    item.vote_count,
-                    item.title,
-                )
-                continue
+        if item.vote_count > 0 and (
+            item.vote_count < config.TMDB_MIN_VOTE_COUNT or item.vote_average < config.TMDB_MIN_VOTE_AVERAGE
+        ):
+            logger.debug(
+                "Rejected (quality, %.1f/%d votes): %s",
+                item.vote_average,
+                item.vote_count,
+                item.title,
+            )
+            continue
 
         real_libs = config.REAL_MOVIES_LIBS if item.media_type in ("movie", "movies") else config.REAL_SHOWS_LIBS
         if plex.exists_in_any(real_libs, _base_title(item.title), item.media_type):
@@ -224,8 +216,7 @@ def write_dummies(items: list[MediaItem], config: Settings) -> None:
     """Step 3: Create dummy .mkv files, trigger Plex scan, and apply labels."""
     ensure_template(config.TEMPLATE_FILE)
     tagged = [
-        item for item in items
-        if create_dummy(item.title, item.year, item.media_type, config, tmdb_id=item.tmdb_id)
+        item for item in items if create_dummy(item.title, item.year, item.media_type, config, tmdb_id=item.tmdb_id)
     ]
 
     if not tagged:
@@ -269,7 +260,7 @@ def run(config: Settings | None = None) -> None:
         logger.info("Ingestion schedule is disabled — exiting.")
         return
 
-    items, themed_lists = fetch_media(config)
+    items = fetch_media(config)
     filtered = filter_media(items, config)
     write_dummies(filtered, config)
-    kometa_config.generate(themed_lists, output_dir=config.KOMETA_CONFIG_PATH)
+    discovery_order.run(config)

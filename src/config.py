@@ -18,12 +18,18 @@ class Settings(BaseSettings):
     TRAKT_USERNAME: str = ""  # Required for Couchmoney themed list discovery
 
     # AniList
-    ANILIST_USERNAME: str = ""        # Required for personalised anime recommendations
-    ANILIST_RECS_PER_ENTRY: int = 3   # Recommendations fetched per completed anime title
+    ANILIST_USERNAME: str = ""  # Required for personalised anime recommendations
+    ANILIST_RECS_PER_ENTRY: int = 3  # Recommendations fetched per completed anime title
 
     # TMDB quality gate
-    TMDB_MIN_VOTE_AVERAGE: float = 6.0
+    TMDB_MIN_VOTE_AVERAGE: float = 6.2
     TMDB_MIN_VOTE_COUNT: int = 100
+
+    # MDBList quality gate (used by MdblistClient standalone — not ingestion)
+    MDBLIST_API_KEY: str = ""
+    MDBLIST_MIN_TRAKT: int = 60  # Trakt popularity score threshold (0–100)
+    MDBLIST_MIN_RATING: int = 60  # Rotten Tomatoes score threshold (0–100)
+
     # ISO 639-1 language codes to exclude from TMDB results (Trakt/AniList items are unaffected)
     EXCLUDED_LANGUAGES: list[str] = ["hi", "ta", "te", "ml", "kn", "bn", "mr"]
 

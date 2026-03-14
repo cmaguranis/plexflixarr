@@ -48,9 +48,7 @@ class TmdbClient:
                     for item in items:
                         results.append(
                             TmdbItem(
-                                title=item.get("title")
-                                if media_type == "movie"
-                                else item.get("name", ""),
+                                title=item.get("title") if media_type == "movie" else item.get("name", ""),
                                 year=(item.get("release_date", "") or "")[:4]
                                 if media_type == "movie"
                                 else (item.get("first_air_date", "") or "")[:4],
@@ -73,11 +71,7 @@ class TmdbClient:
 
         for media_type in ("movie", "tv"):
             for page in range(1, pages + 1):
-                url = (
-                    f"{_TRENDING_URL}/{media_type}/week"
-                    f"?api_key={self._api_key}"
-                    f"&page={page}"
-                )
+                url = f"{_TRENDING_URL}/{media_type}/week?api_key={self._api_key}&page={page}"
                 try:
                     resp = requests.get(url, timeout=10)
                     resp.raise_for_status()

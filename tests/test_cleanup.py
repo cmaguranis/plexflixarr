@@ -1,3 +1,4 @@
+import threading
 from unittest.mock import MagicMock, patch
 
 from src.jobs.cleanup import run
@@ -14,13 +15,32 @@ def test_run_deletes_show_dummy(config, mock_plex_server):
         _make_dummy_item("/discover_shows/Some Show (2024)")
     ]
 
+    _RealTimer = threading.Timer  # capture before it gets patched
+    _timers: list[threading.Timer] = []
+
+    class _ZeroTimer:
+        """Uses the real Timer with zero delay so _flush fires after the outer lock releases."""
+
+        def __init__(self, delay, fn, *args, **kwargs):
+            self._t = _RealTimer(0, fn)
+            _timers.append(self._t)
+
+        def start(self):
+            self._t.start()
+
+        def cancel(self):
+            self._t.cancel()
+
     with (
         patch("src.jobs.cleanup.delete_dummy") as mock_del,
         patch("src.clients.plex_client.time.sleep"),
+        patch("src.jobs.cleanup.threading.Timer", _ZeroTimer),
     ):
         run({"eventType": "Download", "series": {"title": "Some Show"}}, config=config)
         mock_del.assert_called_once_with(config.DISCOVER_SHOWS_PATH / "Some Show (2024)")
 
+    for t in _timers:
+        t.join(timeout=5)
     mock_plex_server.library.section.return_value.emptyTrash.assert_called()
 
 

@@ -94,7 +94,8 @@ class TraktClient:
             return []
 
         themed = [
-            lst for lst in all_lists
+            lst
+            for lst in all_lists
             if _COUCHMONEY_DESCRIPTION_MARKER in lst.get("description", "").lower()
             and lst["ids"]["slug"] not in _DEFAULT_SLUGS
         ]
@@ -104,12 +105,14 @@ class TraktClient:
         for lst_meta in themed:
             slug = lst_meta["ids"]["slug"]
             items = self._fetch_list_items(username, slug)
-            results.append(TraktList(
-                slug=slug,
-                display_name=lst_meta["name"],
-                label=_slug_to_label(slug),
-                items=items,
-            ))
+            results.append(
+                TraktList(
+                    slug=slug,
+                    display_name=lst_meta["name"],
+                    label=_slug_to_label(slug),
+                    items=items,
+                )
+            )
             time.sleep(_REQUEST_DELAY)
 
         return results
@@ -123,12 +126,14 @@ class TraktClient:
             for entry in resp.json():
                 m_type = entry.get("type")
                 media_data = entry.get(m_type, {})
-                items.append(TraktItem(
-                    title=media_data.get("title", ""),
-                    year=str(media_data["year"]) if media_data.get("year") else None,
-                    media_type=m_type,
-                    tmdb_id=media_data.get("ids", {}).get("tmdb"),
-                ))
+                items.append(
+                    TraktItem(
+                        title=media_data.get("title", ""),
+                        year=str(media_data["year"]) if media_data.get("year") else None,
+                        media_type=m_type,
+                        tmdb_id=media_data.get("ids", {}).get("tmdb"),
+                    )
+                )
             return items
         except Exception as exc:
             logger.warning("Failed to fetch items for list %s: %s", slug, exc)

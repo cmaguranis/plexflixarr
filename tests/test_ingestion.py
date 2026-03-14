@@ -33,13 +33,31 @@ def _mock_ensure_template(mocker):
     mocker.patch("src.jobs.ingestion.ensure_template")
 
 
-def _tmdb_item(title="Test Movie", year="2024", media_type="movie", tmdb_id=1):
+@pytest.fixture(autouse=True)
+def _mock_discovery_order(mocker):
+    mocker.patch("src.jobs.discovery_order.run")
+
+
+@pytest.fixture(autouse=True)
+def _mock_anilist(mocker):
+    mocker.patch("src.jobs.ingestion.AniListClient")
+    mocker.patch("src.jobs.ingestion.resolve_tmdb_id", return_value=None)
+
+
+@pytest.fixture(autouse=True)
+def _mock_plex_sleep(mocker):
+    mocker.patch("src.clients.plex_client.time.sleep")
+
+
+def _tmdb_item(title="Test Movie", year="2024", media_type="movie", tmdb_id=1, vote_count=0, vote_average=0.0):
     return TmdbItem(
         title=title,
         year=year,
         media_type=media_type,
         tmdb_id=tmdb_id,
         labels=["Discover_Netflix"],
+        vote_count=vote_count,
+        vote_average=vote_average,
     )
 
 
@@ -53,12 +71,9 @@ def test_run_creates_dummy_and_labels_plex(config, mock_plex_server):
     with (
         patch("src.jobs.ingestion.TmdbClient") as MockTmdb,
         patch("src.jobs.ingestion.TraktClient") as MockTrakt,
-        patch("src.jobs.ingestion.MdblistClient") as MockMdb,
-        patch("src.jobs.ingestion.time.sleep"),
     ):
-        MockTmdb.return_value.fetch_streaming.return_value = [_tmdb_item()]
+        MockTmdb.return_value.fetch_streaming.return_value = [_tmdb_item(vote_count=500, vote_average=7.5)]
         MockTrakt.return_value.fetch_recommendations.return_value = []
-        MockMdb.return_value.passes_quality_check.return_value = True
 
         found = MagicMock()
         mock_plex_server.library.section.side_effect = _section_factory(found)
@@ -70,43 +85,38 @@ def test_run_creates_dummy_and_labels_plex(config, mock_plex_server):
     assert len(movies) == 1
 
 
-def test_run_skips_items_failing_mdblist(config, mock_plex_server):
+def test_run_skips_items_failing_quality_gate(config, mock_plex_server):
     config.TEMPLATE_FILE.write_bytes(b"fake")
 
     with (
         patch("src.jobs.ingestion.TmdbClient") as MockTmdb,
         patch("src.jobs.ingestion.TraktClient") as MockTrakt,
-        patch("src.jobs.ingestion.MdblistClient") as MockMdb,
-        patch("src.jobs.ingestion.time.sleep"),
     ):
-        MockTmdb.return_value.fetch_streaming.return_value = [_tmdb_item()]
+        # Low score — fails quality gate
+        MockTmdb.return_value.fetch_streaming.return_value = [_tmdb_item(vote_count=500, vote_average=3.0)]
         MockTrakt.return_value.fetch_recommendations.return_value = []
-        MockMdb.return_value.passes_quality_check.return_value = False
 
         run(config)
 
     assert list(config.DISCOVER_MOVIES_PATH.rglob("*.mkv")) == []
 
 
-def test_run_trakt_items_bypass_mdblist(config, mock_plex_server):
+def test_run_trakt_items_bypass_quality_gate(config, mock_plex_server):
     config.TEMPLATE_FILE.write_bytes(b"fake")
 
     with (
         patch("src.jobs.ingestion.TmdbClient") as MockTmdb,
         patch("src.jobs.ingestion.TraktClient") as MockTrakt,
-        patch("src.jobs.ingestion.MdblistClient") as MockMdb,
-        patch("src.jobs.ingestion.time.sleep"),
     ):
         MockTmdb.return_value.fetch_streaming.return_value = []
         MockTrakt.return_value.fetch_recommendations.return_value = [_trakt_item()]
-        MockMdb.return_value.passes_quality_check.return_value = False  # would reject
 
         found = MagicMock()
         mock_plex_server.library.section.side_effect = _section_factory(found)
 
         run(config)
 
-    # Show dummy should still be created (Trakt bypasses MDBList)
+    # Show dummy should still be created (Trakt items have no vote data, bypass quality gate)
     shows = list(config.DISCOVER_SHOWS_PATH.rglob("*.mkv"))
     assert len(shows) == 1
 

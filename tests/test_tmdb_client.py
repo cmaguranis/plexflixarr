@@ -18,9 +18,7 @@ def test_fetch_streaming_returns_tmdb_items(config):
         patch("src.clients.tmdb_client.requests.get") as mock_get,
         patch("src.clients.tmdb_client.time.sleep"),
     ):
-        mock_get.side_effect = lambda url, **_: (
-            _mock_response([movie]) if "/movie" in url else _mock_response([show])
-        )
+        mock_get.side_effect = lambda url, **_: _mock_response([movie]) if "/movie" in url else _mock_response([show])
         client = TmdbClient(config)
         results = client.fetch_streaming(pages=1)
 

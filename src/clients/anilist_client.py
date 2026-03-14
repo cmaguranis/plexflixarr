@@ -116,12 +116,14 @@ class AniListClient:
                     if key in seen:
                         continue
                     seen.add(key)
-                    results.append(AniListItem(
-                        title=title,
-                        year=str(year) if year else None,
-                        media_type=media_type,
-                        anilist_id=rec.get("id"),
-                    ))
+                    results.append(
+                        AniListItem(
+                            title=title,
+                            year=str(year) if year else None,
+                            media_type=media_type,
+                            anilist_id=rec.get("id"),
+                        )
+                    )
 
         return results
 
@@ -164,11 +166,13 @@ class AniListClient:
                 if key in seen:
                     continue
                 seen.add(key)
-                results.append(AniListItem(
-                    title=title,
-                    year=str(year) if year else None,
-                    media_type=media_type,
-                    anilist_id=media.get("id"),
-                ))
+                results.append(
+                    AniListItem(
+                        title=title,
+                        year=str(year) if year else None,
+                        media_type=media_type,
+                        anilist_id=media.get("id"),
+                    )
+                )
 
         return results

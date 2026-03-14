@@ -43,7 +43,10 @@ def _payload(nodes: list[dict]) -> dict:
 
 def test_fetch_recommendations_returns_show(config):
     with (
-        patch("src.clients.anilist_client.requests.post", return_value=_mock_response(_payload([_rec_node(title_en="Naruto", fmt="TV")]))),
+        patch(
+            "src.clients.anilist_client.requests.post",
+            return_value=_mock_response(_payload([_rec_node(title_en="Naruto", fmt="TV")])),
+        ),
         patch("src.clients.anilist_client.time.sleep"),
     ):
         results = AniListClient(config).fetch_recommendations("testuser")
@@ -56,7 +59,10 @@ def test_fetch_recommendations_returns_show(config):
 
 def test_fetch_recommendations_returns_movie(config):
     with (
-        patch("src.clients.anilist_client.requests.post", return_value=_mock_response(_payload([_rec_node(title_en="Spirited Away", year=2001, fmt="MOVIE")]))),
+        patch(
+            "src.clients.anilist_client.requests.post",
+            return_value=_mock_response(_payload([_rec_node(title_en="Spirited Away", year=2001, fmt="MOVIE")])),
+        ),
         patch("src.clients.anilist_client.time.sleep"),
     ):
         results = AniListClient(config).fetch_recommendations("testuser")
@@ -66,7 +72,10 @@ def test_fetch_recommendations_returns_movie(config):
 
 def test_fetch_recommendations_uses_romaji_fallback(config):
     with (
-        patch("src.clients.anilist_client.requests.post", return_value=_mock_response(_payload([_rec_node(title_en=None, title_ro="Kimetsu no Yaiba")]))),
+        patch(
+            "src.clients.anilist_client.requests.post",
+            return_value=_mock_response(_payload([_rec_node(title_en=None, title_ro="Kimetsu no Yaiba")])),
+        ),
         patch("src.clients.anilist_client.time.sleep"),
     ):
         results = AniListClient(config).fetch_recommendations("testuser")
@@ -106,7 +115,9 @@ def test_fetch_recommendations_deduplicates(config):
 
 def test_fetch_recommendations_handles_missing_year(config):
     with (
-        patch("src.clients.anilist_client.requests.post", return_value=_mock_response(_payload([_rec_node(year=None)]))),
+        patch(
+            "src.clients.anilist_client.requests.post", return_value=_mock_response(_payload([_rec_node(year=None)]))
+        ),
         patch("src.clients.anilist_client.time.sleep"),
     ):
         results = AniListClient(config).fetch_recommendations("testuser")

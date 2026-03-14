@@ -40,7 +40,9 @@ class MdblistClient:
             chunk = tmdb_ids[offset : offset + _BATCH_SIZE]
             logger.debug(
                 "MDBList batch request: media_type=%s rating=%s ids=%s",
-                media_type, rating, chunk,
+                media_type,
+                rating,
+                chunk,
             )
             resp = _session.post(
                 f"{_BASE_URL}/{media_type}/{rating}",
@@ -50,7 +52,8 @@ class MdblistClient:
             )
             logger.debug(
                 "MDBList response: status=%s body=%s",
-                resp.status_code, resp.text[:500],
+                resp.status_code,
+                resp.text[:500],
             )
             if resp.status_code == 503:
                 body = resp.json() if resp.content else {}
@@ -73,9 +76,6 @@ class MdblistClient:
         tomatoes = self._fetch_ratings(tmdb_ids, media_type, "tomatoes")
 
         return {
-            tmdb_id: (
-                trakt.get(tmdb_id, 0) >= self._min_trakt
-                or tomatoes.get(tmdb_id, 0) >= self._min_rt
-            )
+            tmdb_id: (trakt.get(tmdb_id, 0) >= self._min_trakt or tomatoes.get(tmdb_id, 0) >= self._min_rt)
             for tmdb_id in tmdb_ids
         }
