@@ -34,11 +34,6 @@ def _mock_ensure_template(mocker):
 
 
 @pytest.fixture(autouse=True)
-def _mock_discovery_order(mocker):
-    mocker.patch("src.jobs.discovery_order.run")
-
-
-@pytest.fixture(autouse=True)
 def _mock_anilist(mocker):
     mocker.patch("src.jobs.ingestion.AniListClient")
     mocker.patch("src.jobs.ingestion.resolve_tmdb_id", return_value=None)

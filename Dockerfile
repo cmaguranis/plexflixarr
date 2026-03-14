@@ -13,6 +13,5 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen
 
 COPY src/ src/
-COPY kometa-config/discovery_ui.template.yml templates/
 
 CMD ["/app/.venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8742"]

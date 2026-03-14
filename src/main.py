@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, FastAPI
 
 from src.config import Settings
 from src.dummy import ensure_template
-from src.jobs import cleanup, dedupe, ingestion, kometa_config, label
+from src.jobs import cleanup, dedupe, ingestion, label
 from src.jobs.ingestion import MediaItem, fetch_media
 from src.logging_config import setup_logging
 
@@ -17,7 +17,6 @@ setup_logging()
 async def lifespan(app: FastAPI):
     config = Settings()
     ensure_template(config.TEMPLATE_FILE)
-    kometa_config.generate([], output_dir=config.KOMETA_CONFIG_PATH)
     yield
 
 
@@ -42,7 +41,7 @@ def config_env() -> dict:
 @ingestion_router.post("/fetch")
 def fetch_candidates() -> list[MediaItem]:
     """Fetch raw candidates from TMDB and Trakt without filtering or writing files."""
-    items, _ = fetch_media(Settings())
+    items = fetch_media(Settings())
     return items
 
 

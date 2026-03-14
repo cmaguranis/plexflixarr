@@ -9,7 +9,6 @@ from src.clients.tmdb_client import TmdbClient
 from src.clients.trakt_client import TraktClient
 from src.config import Settings
 from src.dummy import create_dummy, ensure_template
-from src.jobs import discovery_order
 from src.jobs.schedule import Schedule
 
 logger = logging.getLogger(__name__)
@@ -263,4 +262,3 @@ def run(config: Settings | None = None) -> None:
     items = fetch_media(config)
     filtered = filter_media(items, config)
     write_dummies(filtered, config)
-    discovery_order.run(config)
