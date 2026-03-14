@@ -17,9 +17,7 @@ setup_logging()
 async def lifespan(app: FastAPI):
     config = Settings()
     ensure_template(config.TEMPLATE_FILE)
-    discovery_ui = config.KOMETA_CONFIG_PATH / "discovery_ui.yml"
-    if not discovery_ui.exists():
-        kometa_config.generate([], output_dir=config.KOMETA_CONFIG_PATH)
+    kometa_config.generate([], output_dir=config.KOMETA_CONFIG_PATH)
     yield
 
 

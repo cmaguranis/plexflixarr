@@ -14,12 +14,12 @@
 templates:
   discovery_row:
     # Smart Collection scoped to a single Plex label applied by the ingest script.
-    # user_watched: false hides items the user has already watched — secondary failsafe
+    # unplayed: true hides items the user has already watched — secondary failsafe
     # on top of the MDBList quality gate in the ingestion pipeline.
     smart_filter:
       all:
         label: <<label_name>>
-        user_watched: false
+        unplayed: true
     sort_title: <<sort_prefix>>_<<collection_name>>
     sync_mode: sync
     # Pins this collection as a horizontal row on the Plex home screen.
@@ -131,7 +131,94 @@ overlays:
       any:
         label.beginsWith: Discover_
 
-  # Streaming service logo overlays (bottom-left) are handled by:
-  #   config.yml → overlay_files → default: streaming
-  # Kometa applies the correct service logo automatically based on each item's
-  # JustWatch/TMDB streaming availability metadata.
+  # ── Streaming service logo overlays (bottom-left) ────────────────────────────
+  # Applied locally from Plex labels — no TMDB/TVDb API calls required.
+  # Kometa fetches logo PNGs from its own GitHub repo via the path-based name.
+
+  Streaming Netflix:
+    overlay:
+      name: streaming/color/Netflix
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Netflix
+
+  Streaming Apple TV+:
+    overlay:
+      name: streaming/color/Apple TV Plus
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_AppleTV
+
+  Streaming Max:
+    overlay:
+      name: streaming/color/Max
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Max
+
+  Streaming Hulu:
+    overlay:
+      name: streaming/color/Hulu
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Hulu
+
+  Streaming AMC+:
+    overlay:
+      name: streaming/color/AMC Plus
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_AMC
+
+  Streaming Crunchyroll:
+    overlay:
+      name: streaming/color/Crunchyroll
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Crunchyroll
+
+  Streaming Disney+:
+    overlay:
+      name: streaming/color/Disney Plus
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_Disney
+
+  Streaming Adult Swim:
+    overlay:
+      name: network/color/Adult Swim
+      horizontal_align: left
+      horizontal_offset: 15
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Discover_AdultSwim

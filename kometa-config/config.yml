@@ -7,13 +7,9 @@ libraries:
   Discover Movies:
     collection_files:
       - file: config/discovery_ui.yml
-    overlay_files:
-      - default: streaming
   Discover Shows:
     collection_files:
       - file: config/discovery_ui.yml
-    overlay_files:
-      - default: streaming
 
 settings:
   cache: true
