@@ -14,9 +14,6 @@ libraries:
 settings:
   cache: true
   cache_expiration: 6
-  # Kometa resolves overlay PNGs relative to this directory.
-  # Place request_needed_icon.png at kometa-config/assets/overlays/
-  asset_directory: config/assets
   sync_mode: sync
   verify_ssl: true
 

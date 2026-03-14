@@ -13,13 +13,11 @@
 
 templates:
   discovery_row:
-    # Smart Collection scoped to a single Plex label applied by the ingest script.
-    # unplayed: true hides items the user has already watched — secondary failsafe
-    # on top of the MDBList quality gate in the ingestion pipeline.
+    # Smart Collection scoped to a single Plex label applied by the ingest script
     smart_filter:
+      validate: false
       all:
         label: <<label_name>>
-        unplayed: true
     sort_title: <<sort_prefix>>_<<collection_name>>
     sync_mode: sync
     # Pins this collection as a horizontal row on the Plex home screen.
