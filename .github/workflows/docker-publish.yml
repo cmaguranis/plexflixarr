@@ -7,6 +7,7 @@ on:
     paths:
       - "src/**"
       - "assets/dummy.mkv"
+      - "kometa-config/discovery_ui.template.yml"
       - "Dockerfile"
       - "pyproject.toml"
       - "uv.lock"
