@@ -1,6 +1,13 @@
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, call
+
+import pytest
 
 from src.clients.plex_client import PlexClient
+
+
+@pytest.fixture(autouse=True)
+def _mock_sleep(mocker):
+    mocker.patch("src.clients.plex_client.time.sleep")
 
 
 def test_refresh_and_wait_triggers_update(config, mock_plex_server):
@@ -15,9 +22,8 @@ def test_refresh_and_wait_polls_until_done(config, mock_plex_server):
     section.refreshing = False  # initial state after update()
     # Simulate the server returning refreshing=True then False
     type(section).refreshing = property(lambda self, _calls=iter([True, True, False]): next(_calls, False))
-    with patch("src.clients.plex_client.time.sleep"):
-        client = PlexClient(config)
-        client.refresh_and_wait("Discover Movies")
+    client = PlexClient(config)
+    client.refresh_and_wait("Discover Movies")
 
 
 def test_search_calls_section_search(config, mock_plex_server):
@@ -43,6 +49,5 @@ def test_empty_trash(config, mock_plex_server):
 def test_refresh_and_wait_times_out(config, mock_plex_server):
     section = mock_plex_server.library.section.return_value
     type(section).refreshing = property(lambda self: True)  # never finishes
-    with patch("src.clients.plex_client.time.sleep"):
-        client = PlexClient(config)
-        client.refresh_and_wait("Discover Movies", max_wait=0)  # should break immediately
+    client = PlexClient(config)
+    client.refresh_and_wait("Discover Movies", max_wait=0)  # should break immediately

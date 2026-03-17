@@ -4,24 +4,88 @@
 # No Trakt, MDBList, or Radarr/Sonarr keys are needed here — the Python
 # ingestion script handles all data fetching and dummy file management.
 libraries:
+  # Adjust library names to match your exact Plex library names (case-sensitive)
+  Movies:
+    collection_files:
+      - file: config/main_libraries.yml
+
+  TV Shows:
+    collection_files:
+      - file: config/main_libraries.yml
+
   Discover Movies:
     collection_files:
       - file: config/discovery_ui.yml
+    overlay_files:
+      - default: streaming
+      - file: config/overlays.yml
   Discover Shows:
     collection_files:
       - file: config/discovery_ui.yml
+    overlay_files:
+      - default: streaming
+      - file: config/overlays.yml
 
 settings:
   cache: true
   cache_expiration: 6
+  # Kometa resolves overlay PNGs relative to this directory.
+  # Place request_needed_icon.png at kometa-config/assets/overlays/
+  asset_directory: config/assets
   sync_mode: sync
   verify_ssl: true
 
+  run_order:
+  - operations
+  - metadata
+  - collections
+  - overlays
+  asset_folders: false
+  asset_depth: 0
+  create_asset_folders: false
+  prioritize_assets: false
+  dimensional_asset_rename: false
+  download_url_assets: false
+  show_missing_assets: true
+  show_missing_season_assets: false
+  show_missing_episode_assets: false
+  show_asset_not_needed: true
+  default_collection_order:
+  minimum_items: 1
+  item_refresh_delay: 0
+  delete_below_minimum: false
+  delete_not_scheduled: false
+  run_again_delay: 0
+  missing_only_released: false
+  only_filter_missing: false
+  show_unmanaged: true
+  show_unconfigured: true
+  show_filtered: false
+  show_unfiltered: false
+  show_options: false
+  show_missing: true
+  save_report: false
+  tvdb_language: default
+  ignore_ids:
+  ignore_imdb_ids:
+  playlist_sync_to_users:
+  playlist_exclude_users:
+  playlist_report: true
+  custom_repo:
+  overlay_artwork_filetype: webp_lossy
+  overlay_artwork_quality: 90
 plex:
   url: http://192.168.1.67:32400
-  token: YOUR_PLEX_TOKEN
+  token: raCG-FQbKDMPzHDvuFDh
   timeout: 60
 
+  verify_ssl:
+  db_cache:
+  clean_bundles: false
+  empty_trash: false
+  optimize: false
 tmdb:
-  apikey: YOUR_TMDB_API_KEY
+  apikey: ecb16ac8086279d0a6c2fe7d235c4a79
   language: en
+  cache_expiration: 60
+  region:

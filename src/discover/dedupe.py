@@ -3,7 +3,7 @@ import logging
 from src.clients.plex_client import PlexClient
 from src.config import Settings
 from src.dummy import delete_dummy, item_folder
-from src.jobs.ingestion import _base_title
+from src.ingestion.shared import _base_title
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,6 @@ def run(config: Settings | None = None) -> dict:
     config = config or Settings()
     plex = PlexClient(config)
 
-    real_libs_by_type = {
-        "movie": config.REAL_MOVIES_LIBS,
-        "show": config.REAL_SHOWS_LIBS,
-    }
     removed: dict[str, int] = {}
 
     for discover_lib, libtype in _DISCOVER_LIBS:
@@ -39,7 +35,7 @@ def run(config: Settings | None = None) -> dict:
 
         for item in section.all():
             base = _base_title(item.title)
-            if plex.exists_in_any(real_libs_by_type[libtype], base, libtype):
+            if plex.exists_in_any(config.REAL_LIBS, base, libtype):
                 folder = item_folder(item, libtype, config)
                 logger.info("Deduping '%s' (found in real library) — removing %s", item.title, folder)
                 delete_dummy(folder)

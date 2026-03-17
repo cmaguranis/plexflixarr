@@ -4,7 +4,7 @@ import pytest
 
 from src.clients.tmdb_client import TmdbItem
 from src.clients.trakt_client import TraktItem
-from src.jobs.ingestion import run
+from src.ingestion.ingestion import run
 
 _REAL_LIBS = {"Movies", "Anime Movies", "TV Shows", "Anime TV"}
 
@@ -25,18 +25,23 @@ def _section_factory(found_item=None):
 @pytest.fixture(autouse=True)
 def _disable_schedule(mocker):
     """Always enable the schedule so ingestion runs in tests."""
-    mocker.patch("src.jobs.ingestion.Schedule.is_enabled", return_value=True)
+    mocker.patch("src.ingestion.ingestion.Schedule.is_enabled", return_value=True)
 
 
 @pytest.fixture(autouse=True)
 def _mock_ensure_template(mocker):
-    mocker.patch("src.jobs.ingestion.ensure_template")
+    mocker.patch("src.ingestion.shared.ensure_template")
 
 
 @pytest.fixture(autouse=True)
 def _mock_anilist(mocker):
-    mocker.patch("src.jobs.ingestion.AniListClient")
-    mocker.patch("src.jobs.ingestion.resolve_tmdb_id", return_value=None)
+    mocker.patch("src.ingestion.ingestion.AniListClient")
+    mocker.patch("src.ingestion.ingestion.resolve_tmdb_id", return_value=None)
+
+
+@pytest.fixture(autouse=True)
+def _mock_call_state(mocker):
+    mocker.patch("src.ingestion.ingestion.CallState")
 
 
 @pytest.fixture(autouse=True)
@@ -64,8 +69,8 @@ def test_run_creates_dummy_and_labels_plex(config, mock_plex_server):
     config.TEMPLATE_FILE.write_bytes(b"fake")
 
     with (
-        patch("src.jobs.ingestion.TmdbClient") as MockTmdb,
-        patch("src.jobs.ingestion.TraktClient") as MockTrakt,
+        patch("src.ingestion.ingestion.TmdbClient") as MockTmdb,
+        patch("src.ingestion.ingestion.TraktClient") as MockTrakt,
     ):
         MockTmdb.return_value.fetch_streaming.return_value = [_tmdb_item(vote_count=500, vote_average=7.5)]
         MockTrakt.return_value.fetch_recommendations.return_value = []
@@ -84,8 +89,8 @@ def test_run_skips_items_failing_quality_gate(config, mock_plex_server):
     config.TEMPLATE_FILE.write_bytes(b"fake")
 
     with (
-        patch("src.jobs.ingestion.TmdbClient") as MockTmdb,
-        patch("src.jobs.ingestion.TraktClient") as MockTrakt,
+        patch("src.ingestion.ingestion.TmdbClient") as MockTmdb,
+        patch("src.ingestion.ingestion.TraktClient") as MockTrakt,
     ):
         # Low score — fails quality gate
         MockTmdb.return_value.fetch_streaming.return_value = [_tmdb_item(vote_count=500, vote_average=3.0)]
@@ -100,8 +105,8 @@ def test_run_trakt_items_bypass_quality_gate(config, mock_plex_server):
     config.TEMPLATE_FILE.write_bytes(b"fake")
 
     with (
-        patch("src.jobs.ingestion.TmdbClient") as MockTmdb,
-        patch("src.jobs.ingestion.TraktClient") as MockTrakt,
+        patch("src.ingestion.ingestion.TmdbClient") as MockTmdb,
+        patch("src.ingestion.ingestion.TraktClient") as MockTrakt,
     ):
         MockTmdb.return_value.fetch_streaming.return_value = []
         MockTrakt.return_value.fetch_recommendations.return_value = [_trakt_item()]
@@ -117,7 +122,7 @@ def test_run_trakt_items_bypass_quality_gate(config, mock_plex_server):
 
 
 def test_run_exits_early_when_schedule_disabled(config, mocker):
-    mocker.patch("src.jobs.ingestion.Schedule.is_enabled", return_value=False)
-    with patch("src.jobs.ingestion.TmdbClient") as MockTmdb:
+    mocker.patch("src.ingestion.ingestion.Schedule.is_enabled", return_value=False)
+    with patch("src.ingestion.ingestion.TmdbClient") as MockTmdb:
         run(config)
         MockTmdb.assert_not_called()

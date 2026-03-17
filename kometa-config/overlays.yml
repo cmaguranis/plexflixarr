@@ -1,0 +1,40 @@
+overlays:
+  # ── "Request Needed" text badge (top of poster) ───────────────────────────
+  # Applied to every dummy file so it's visually distinct from real media.
+  # No PNG required — uses Kometa's built-in text + backdrop overlay.
+  Request Needed Backdrop:
+    overlay:
+      name: backdrop
+      back_color: "#00000099"
+      back_height: 100
+      vertical_align: top
+    plex_search:
+      any:
+        label:
+          - Overlay
+
+  Request Needed Text:
+    overlay:
+      name: text(Request)
+      horizontal_offset: 0
+      horizontal_align: center
+      vertical_offset: 30
+      vertical_align: top
+      font_size: 63
+      font_color: "#FFFFFF"
+    plex_search:
+      any:
+        label:
+          - Overlay
+
+  Streaming Netflix:
+    template:
+      name: streaming
+      name: Netflix
+      horizontal_align: center
+      horizontal_offset: 0
+      vertical_align: bottom
+      vertical_offset: 15
+    plex_search:
+      all:
+        label: Overlay

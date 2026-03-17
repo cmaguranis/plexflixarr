@@ -19,7 +19,7 @@ def test_fetch_recommendations_returns_items(config):
         patch("src.clients.trakt_client.requests.get", return_value=_mock_response(payload)),
         patch("src.clients.trakt_client.time.sleep"),
     ):
-        results = TraktClient(config).fetch_recommendations()
+        results = TraktClient(config).fetch_recommendations("testuser")
 
     titles = [r.title for r in results]
     assert "Rec Movie" in titles
@@ -32,7 +32,7 @@ def test_fetch_recommendations_handles_missing_year(config):
         patch("src.clients.trakt_client.requests.get", return_value=_mock_response(payload)),
         patch("src.clients.trakt_client.time.sleep"),
     ):
-        results = TraktClient(config).fetch_recommendations()
+        results = TraktClient(config).fetch_recommendations("testuser")
     assert results[0].year is None
 
 
@@ -41,5 +41,5 @@ def test_fetch_recommendations_handles_api_error(config):
         patch("src.clients.trakt_client.requests.get", side_effect=Exception("error")),
         patch("src.clients.trakt_client.time.sleep"),
     ):
-        results = TraktClient(config).fetch_recommendations()
+        results = TraktClient(config).fetch_recommendations("testuser")
     assert results == []

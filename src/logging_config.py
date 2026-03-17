@@ -80,3 +80,4 @@ def setup_logging(level: int | None = None) -> None:
         )
     )
     logging.basicConfig(level=level, handlers=[handler])
+    logging.getLogger("urllib3").setLevel(logging.WARNING)

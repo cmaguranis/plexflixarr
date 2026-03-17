@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://api.trakt.tv"
 _REQUEST_DELAY = 1  # seconds between Trakt requests
 
-# Couchmoney generates personalised recommendation lists under its own account.
+# Couchmoney generates personalised recommendation lists on the user's own Trakt account.
 # After logging into couchmoney.tv with your Trakt account, check your Trakt
 # profile → Lists for the exact slugs. These are the typical defaults.
-_DEFAULT_SLUGS = ["recommendations-movies", "recommendations-shows"]
+_DEFAULT_SLUGS = ["movies-recommendations-couchmoney-tv", "tv-recommendations-couchmoney-tv"]
 
 # Couchmoney sets this string in each themed list's description field.
 _COUCHMONEY_DESCRIPTION_MARKER = "couchmoney"
@@ -32,7 +32,6 @@ class TraktItem:
 class TraktList:
     slug: str
     display_name: str
-    label: str  # Plex label, e.g. "Discover_CM_Jason_Stathamesque"
     items: list[TraktItem] = field(default_factory=list)
 
 
@@ -44,9 +43,9 @@ class TraktClient:
             "trakt-api-key": config.TRAKT_CLIENT_ID,
         }
 
-    def fetch_recommendations(self, slugs: list[str] | None = None) -> list[TraktItem]:
+    def fetch_recommendations(self, username: str, slugs: list[str] | None = None) -> list[TraktItem]:
         """
-        Fetch items from Couchmoney recommendation lists on Trakt.
+        Fetch items from Couchmoney recommendation lists on the user's Trakt account.
 
         Slugs default to the standard Couchmoney list names. Override via argument
         if your lists have different names.
@@ -55,7 +54,7 @@ class TraktClient:
         results: list[TraktItem] = []
 
         for slug in slugs:
-            url = f"{_BASE_URL}/users/couchmoney/lists/{slug}/items"
+            url = f"{_BASE_URL}/users/{username}/lists/{slug}/items"
             try:
                 resp = requests.get(url, headers=self._headers, timeout=10)
                 resp.raise_for_status()
@@ -109,7 +108,6 @@ class TraktClient:
                 TraktList(
                     slug=slug,
                     display_name=lst_meta["name"],
-                    label=_slug_to_label(slug),
                     items=items,
                 )
             )
@@ -138,9 +136,3 @@ class TraktClient:
         except Exception as exc:
             logger.warning("Failed to fetch items for list %s: %s", slug, exc)
             return []
-
-
-def _slug_to_label(slug: str) -> str:
-    """'jason-stathamesque' → 'Discover_CM_Jason_Stathamesque'"""
-    normalized = "_".join(part.capitalize() for part in slug.split("-"))
-    return f"Discover_CM_{normalized}"

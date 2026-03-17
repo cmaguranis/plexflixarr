@@ -1,17 +1,16 @@
 import logging
+import math
 import time
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 
-import requests
+import tmdbsimple as tmdb
 
 from src.config import Settings
 
 logger = logging.getLogger(__name__)
 
-_BASE_URL = "https://api.themoviedb.org/3/discover"
-_TRENDING_URL = "https://api.themoviedb.org/3/trending"
 _WATCH_REGION = "US"
-_REQUEST_DELAY = 0.5  # seconds between TMDB requests
 
 
 @dataclass
@@ -29,8 +28,13 @@ class TmdbItem:
 
 class TmdbClient:
     def __init__(self, config: Settings) -> None:
-        self._api_key = config.TMDB_API_KEY
+        tmdb.API_KEY = config.TMDB_API_KEY
         self._providers = config.STREAMING_PROVIDERS
+        self._delay = config.TMDB_REQUEST_DELAY
+
+    # -------------------------------------------------------------------------
+    # Ingestion helpers (existing interface)
+    # -------------------------------------------------------------------------
 
     def fetch_streaming(self, pages: int = 5) -> list[TmdbItem]:
         """
@@ -46,22 +50,8 @@ class TmdbClient:
                 for page in range(1, pages + 1):
                     items = self._fetch_page(provider_id, media_type, page)
                     for item in items:
-                        results.append(
-                            TmdbItem(
-                                title=item.get("title") if media_type == "movie" else item.get("name", ""),
-                                year=(item.get("release_date", "") or "")[:4]
-                                if media_type == "movie"
-                                else (item.get("first_air_date", "") or "")[:4],
-                                media_type=media_type,
-                                tmdb_id=item["id"],
-                                original_language=item.get("original_language", ""),
-                                labels=[label],
-                                genre_ids=item.get("genre_ids", []),
-                                vote_average=item.get("vote_average", 0.0),
-                                vote_count=item.get("vote_count", 0),
-                            )
-                        )
-                    time.sleep(_REQUEST_DELAY)
+                        results.append(self._make_item(item, media_type, labels=[label]))
+                    time.sleep(self._delay)
 
         return results
 
@@ -71,45 +61,107 @@ class TmdbClient:
 
         for media_type in ("movie", "tv"):
             for page in range(1, pages + 1):
-                url = f"{_TRENDING_URL}/{media_type}/week?api_key={self._api_key}&page={page}"
                 try:
-                    resp = requests.get(url, timeout=10)
-                    resp.raise_for_status()
-                    for item in resp.json().get("results", []):
-                        results.append(
-                            TmdbItem(
-                                title=item.get("title") if media_type == "movie" else item.get("name", ""),
-                                year=(item.get("release_date", "") or "")[:4]
-                                if media_type == "movie"
-                                else (item.get("first_air_date", "") or "")[:4],
-                                media_type=media_type,
-                                tmdb_id=item["id"],
-                                original_language=item.get("original_language", ""),
-                                labels=["Discover_Trending"],
-                                genre_ids=item.get("genre_ids", []),
-                                vote_average=item.get("vote_average", 0.0),
-                                vote_count=item.get("vote_count", 0),
-                            )
-                        )
+                    response = tmdb.Trending(media_type, "week").info(page=page)
+                    for item in response.get("results", []):
+                        results.append(self._make_item(item, media_type, labels=["Discover_Trending"]))
                 except Exception as exc:
                     logger.warning("TMDB trending fetch failed (type=%s page=%d): %s", media_type, page, exc)
-                time.sleep(_REQUEST_DELAY)
+                time.sleep(self._delay)
 
         return results
 
-    def _fetch_page(self, provider_id: str, media_type: str, page: int) -> list[dict]:
-        url = (
-            f"{_BASE_URL}/{media_type}"
-            f"?api_key={self._api_key}"
-            f"&watch_region={_WATCH_REGION}"
-            f"&with_watch_providers={provider_id}"
-            f"&sort_by=popularity.desc"
-            f"&page={page}"
-        )
+    # -------------------------------------------------------------------------
+    # Trending (daily)
+    # -------------------------------------------------------------------------
+
+    def get_trending_movies(self, n: int = 100) -> list[TmdbItem]:
+        """Top n trending movies today."""
+        return self._fetch_trending("movie", n)
+
+    def get_trending_shows(self, n: int = 100) -> list[TmdbItem]:
+        """Top n trending TV shows today."""
+        return self._fetch_trending("tv", n)
+
+    # -------------------------------------------------------------------------
+    # Discover — popular over last m days
+    # -------------------------------------------------------------------------
+
+    def get_popular_movies(self, n: int = 100, days: int = 365) -> list[TmdbItem]:
+        """Top n popular movies released within the last `days` days."""
+        return self._fetch_discover("movie", n, **_date_filter("movie", days))
+
+    def get_popular_shows(self, n: int = 100, days: int = 365) -> list[TmdbItem]:
+        """Top n popular TV shows that started airing within the last `days` days."""
+        return self._fetch_discover("tv", n, **_date_filter("tv", days))
+
+    def get_popular_korean_movies(self, n: int = 100, days: int = 365) -> list[TmdbItem]:
+        """Top n popular Korean-language movies released within the last `days` days."""
+        return self._fetch_discover("movie", n, with_original_language="ko", **_date_filter("movie", days))
+
+    def get_popular_korean_shows(self, n: int = 100, days: int = 365) -> list[TmdbItem]:
+        """Top n popular Korean-language TV shows that started airing within the last `days` days."""
+        return self._fetch_discover("tv", n, with_original_language="ko", **_date_filter("tv", days))
+
+    def search_tv_by_title(self, title: str, year: int | str | None = None) -> int | None:
+        """Search TMDB for a TV show by title, return tmdb_id or None."""
         try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            return resp.json().get("results", [])
+            params: dict = {"query": title}
+            if year:
+                params["first_air_date_year"] = str(year)[:4]
+            response = tmdb.Search().tv(**params)
+            results = response.get("results", [])
+            if results:
+                return results[0]["id"]
+        except Exception as exc:
+            logger.warning("TMDB TV search failed (title=%r year=%r): %s", title, year, exc)
+        return None
+
+    # -------------------------------------------------------------------------
+    # Private helpers
+    # -------------------------------------------------------------------------
+
+    def _fetch_trending(self, media_type: str, n: int) -> list[TmdbItem]:
+        results: list[TmdbItem] = []
+        for page in range(1, math.ceil(n / 20) + 1):
+            try:
+                response = tmdb.Trending(media_type, "day").info(page=page)
+                for item in response.get("results", []):
+                    results.append(self._make_item(item, media_type))
+                    if len(results) >= n:
+                        return results
+            except Exception as exc:
+                logger.warning("TMDB trending fetch failed (type=%s page=%d): %s", media_type, page, exc)
+            time.sleep(self._delay)
+        return results
+
+    def _fetch_discover(self, media_type: str, n: int, **kwargs) -> list[TmdbItem]:
+        results: list[TmdbItem] = []
+        for page in range(1, math.ceil(n / 20) + 1):
+            try:
+                discover = tmdb.Discover()
+                params = {"sort_by": "popularity.desc", "page": page, **kwargs}
+                response = discover.movie(**params) if media_type == "movie" else discover.tv(**params)
+                for item in response.get("results", []):
+                    results.append(self._make_item(item, media_type))
+                    if len(results) >= n:
+                        return results
+            except Exception as exc:
+                logger.warning("TMDB discover fetch failed (type=%s page=%d): %s", media_type, page, exc)
+            time.sleep(self._delay)
+        return results
+
+    def _fetch_page(self, provider_id: str, media_type: str, page: int) -> list[dict]:
+        try:
+            discover = tmdb.Discover()
+            kwargs = {
+                "watch_region": _WATCH_REGION,
+                "with_watch_providers": provider_id,
+                "sort_by": "popularity.desc",
+                "page": page,
+            }
+            response = discover.movie(**kwargs) if media_type == "movie" else discover.tv(**kwargs)
+            return response.get("results", [])
         except Exception as exc:
             logger.warning(
                 "TMDB fetch failed (provider=%s type=%s page=%d): %s",
@@ -119,3 +171,28 @@ class TmdbClient:
                 exc,
             )
             return []
+
+    @staticmethod
+    def _make_item(raw: dict, media_type: str, labels: list[str] | None = None) -> TmdbItem:
+        return TmdbItem(
+            title=raw.get("title", "") if media_type == "movie" else raw.get("name", ""),
+            year=(raw.get("release_date", "") or "")[:4]
+            if media_type == "movie"
+            else (raw.get("first_air_date", "") or "")[:4],
+            media_type=media_type,
+            tmdb_id=raw["id"],
+            original_language=raw.get("original_language", ""),
+            labels=list(labels) if labels else [],
+            genre_ids=raw.get("genre_ids", []),
+            vote_average=raw.get("vote_average", 0.0),
+            vote_count=raw.get("vote_count", 0),
+        )
+
+
+def _date_filter(media_type: str, days: int) -> dict:
+    today = date.today()
+    since = (today - timedelta(days=days)).isoformat()
+    until = today.isoformat()
+    if media_type == "movie":
+        return {"primary_release_date.gte": since, "primary_release_date.lte": until}
+    return {"first_air_date.gte": since, "first_air_date.lte": until}

@@ -8,7 +8,7 @@ client = TestClient(app)
 
 
 def test_arr_cleanup_radarr():
-    with patch("src.main.cleanup.run"):
+    with patch("src.discover.discover_controller.cleanup.run"):
         resp = client.post(
             "/discover/arr/cleanup",
             json={"eventType": "Download", "movie": {"title": "Inception"}},
@@ -18,7 +18,7 @@ def test_arr_cleanup_radarr():
 
 
 def test_arr_cleanup_sonarr():
-    with patch("src.main.cleanup.run"):
+    with patch("src.discover.discover_controller.cleanup.run"):
         resp = client.post(
             "/discover/arr/cleanup",
             json={"eventType": "Download", "series": {"title": "The Bear"}},

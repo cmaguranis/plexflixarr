@@ -1,0 +1,43 @@
+services:
+  plexflixarr:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: plexflixarr
+    restart: unless-stopped
+    ports:
+      - 8742:8742
+    env_file:
+      - .env
+    volumes:
+      - data:/data
+      - kometa-config:/kometa-config
+    depends_on:
+      plex:
+        condition: service_healthy
+
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    ports:
+      - 32400:32400
+    environment:
+      - TZ=America/New_York
+      - VERSION=docker
+    volumes:
+      - plex-config:/config
+      - data:/data:ro
+    tmpfs:
+      - /transcode
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:32400/identity"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  data:
+  plex-config:
+  kometa-config:

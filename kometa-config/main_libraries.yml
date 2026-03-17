@@ -1,0 +1,140 @@
+# Kometa collection definitions for the main Movies and TV Shows libraries.
+#
+# Collections are ordered via sort_title prefixes. Home screen row order
+# still requires one-time manual pinning/dragging in Plex → Settings → Home.
+#
+# Native Plex rows (Continue Watching, Seasonal) are not managed here.
+#
+# Order:
+#   01 — (Continue Watching — native Plex hub)
+#   02 — Recently Added
+#   03 — Recently Released
+#   04 — K-Dramas
+#   05 — K-Reality
+#   06 — Reality TV
+#   07 — Top Rated
+#   08 — Top by Genre
+#   (09 — Seasonal Movies — native Plex)
+
+templates:
+  # Reusable TMDB Discover row.
+  # All filter parameters are optional — omitted keys are excluded from the
+  # tmdb_discover call when the variable is not provided.
+  #
+  # Parameters:
+  #   sort_prefix   — numeric string controlling home screen order
+  #   sort_by       — default: vote_average.desc
+  #                   options: popularity.desc, release_date.desc
+  #   min_votes     — default: 200 (ensures statistical significance)
+  #   min_rating    — optional float, TMDB vote average floor (0–10)
+  #   genre_name    — optional genre name string (TMDB genre name or numeric ID)
+  #   provider_ids  — optional comma-separated TMDB provider IDs
+  #                   Netflix=8, Hulu=15, Disney+=337, Max=384, AppleTV+=350
+  #   release_after — optional ISO date, e.g. 2020-01-01
+  #   release_before — optional ISO date
+  tmdb_discover_row:
+    optional:
+      - provider_ids
+      - release_after
+      - release_before
+      - min_rating
+      - genre_name
+    tmdb_discover:
+      sort_by: <<sort_by|vote_average.desc>>
+      vote_count.gte: <<min_votes|200>>
+      vote_average.gte: <<min_rating>>
+      with_genres: <<genre_name>>
+      with_watch_providers: <<provider_ids>>
+      watch_region: US
+      primary_release_date.gte: <<release_after>>
+      primary_release_date.lte: <<release_before>>
+    sort_title: <<sort_prefix>>_<<collection_name>>
+    sync_mode: sync
+    visible_home: true
+    visible_shared: true
+
+collections:
+  # ── Recently Added (sort 02) ──────────────────────────────────────────────
+  # Replaces native Plex "Recently Added" hub. Excludes Placeholder-labeled
+  # items so dummy/test content doesn't surface.
+  Recently Added:
+    smart_filter:
+      validate: false
+      all:
+        label.not: Placeholder
+      sort_by: date_added.desc
+    sort_title: 02_Recently Added
+    sync_mode: sync
+    visible_home: true
+    visible_shared: true
+
+  # ── Recently Released (sort 03) ───────────────────────────────────────────
+  # Items released in the past 90 days, newest first.
+  Recently Released:
+    smart_filter:
+      validate: false
+      all:
+        release.after: 90 days ago
+      sort_by: release_date.desc
+    sort_title: 03_Recently Released
+    sync_mode: sync
+    visible_home: true
+    visible_shared: true
+
+  # ── Metadata-only existing collections (sorts 04–06) ─────────────────────
+  # No builder — Kometa only manages sort_title and visibility.
+  # If the collection doesn't exist in a library, Kometa skips it silently.
+  # Adjust names below if the actual Plex collection names differ.
+  K-Dramas:
+    sort_title: 04_K-Dramas
+    sync_mode: sync
+    visible_home: true
+    visible_shared: true
+
+  K-Reality:
+    sort_title: 05_K-Reality
+    sync_mode: sync
+    visible_home: true
+    visible_shared: true
+
+  Reality TV:
+    sort_title: 06_Reality TV
+    sync_mode: sync
+    visible_home: true
+    visible_shared: true
+
+  # ── Top Rated (sort 07) ───────────────────────────────────────────────────
+  # TMDB top-rated titles matched against items actually in the library.
+  Top Rated:
+    template:
+      name: tmdb_discover_row
+      sort_prefix: "07"
+      sort_by: vote_average.desc
+      min_votes: 300
+    summary: Highest rated titles according to TMDB.
+
+  # ── Top by Genre (sort 08) ────────────────────────────────────────────────
+  # One collection per genre using TMDB popular titles filtered by genre.
+  # Genre names are passed to TMDB's discover API. If a name doesn't resolve,
+  # replace it with the numeric TMDB genre ID:
+  #   Movies — Action:28, Drama:18, Comedy:35, Horror:27, Sci-Fi:878,
+  #             Romance:10749, Documentary:99, Thriller:53
+  #   TV     — Action:10759, Drama:18, Comedy:35, Sci-Fi:10765, Documentary:99
+
+dynamic_collections:
+  Top <<key>>:
+    type: custom
+    data:
+      Action: Action
+      Drama: Drama
+      Comedy: Comedy
+      Horror: Horror
+      Science Fiction: Science Fiction
+      Romance: Romance
+      Documentary: Documentary
+      Thriller: Thriller
+    template:
+      - name: tmdb_discover_row
+        sort_prefix: "08"
+        sort_by: popularity.desc
+        genre_name: <<value>>
