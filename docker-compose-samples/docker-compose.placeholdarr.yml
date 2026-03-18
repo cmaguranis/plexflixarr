@@ -1,0 +1,64 @@
+services:
+  placeholdarr:
+    image: ghcr.io/cmaguranis/placeholdarr:queue_monitoring-latest
+    container_name: placeholdarr
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=${{ tz }}
+
+      # Server
+      - PLACEHOLDARR_HOST=0.0.0.0
+      - PLACEHOLDARR_PORT=8265
+      - PLACEHOLDARR_LOG_LEVEL=INFO
+
+      # Plex
+      - ENABLE_PLEX=true
+      - PLEX_URL=http://192.168.1.67:32400
+      - PLEX_TOKEN=
+
+      # Radarr
+      - RADARR_URL=http://192.168.1.67:7878/api/v3
+      - RADARR_API_KEY=
+
+      # Sonarr
+      - SONARR_URL=http://192.168.1.67:8989/api/v3
+      - SONARR_API_KEY=
+
+      # Option 3: root folder awareness
+      # Map each *arr root folder (as seen inside the container) to its Plex section ID.
+      # Keys must match the paths Radarr/Sonarr report in webhooks exactly.
+      - USE_ROOT_FOLDERS=true
+      - DUMMY_FOLDER_NAME=placeholders
+      - 'ROOT_FOLDER_SECTION_ID_MAPPINGS={"/media/movies/": 1, "/media/tv/": 2, "/media/anime_movies/": 3, "/media/anime_tv/": 4, "/data/media_cache/movies/": 1, "/data/media_cache/tv/": 2, "/data/media_cache/anime_movies/": 3, "/data/media_cache/anime_tv/": 4}'
+
+      # Dummy files (must match the right-hand side of your volume mounts below)
+      - DUMMY_FILE_PATH=/media/placeholdarr/dummy.mkv
+      - PLACEHOLDER_STRATEGY=copy
+
+      # Queue management
+      - TV_PLAY_MODE=episode # episode, season, or series
+      - EPISODES_LOOKAHEAD=5
+      - MAX_MONITOR_TIME=120
+      - CHECK_INTERVAL=3
+      - TITLE_UPDATES=REQUEST
+      - AVAILABLE_CLEANUP_DELAY=10
+      - PLAYBACK_COOLDOWN=30
+
+      # Calendar — coming soon placeholders disabled
+      - ENABLE_COMING_SOON_PLACEHOLDERS=false
+      - INCLUDE_SPECIALS=false
+
+      # Advanced — set WEBHOOK_URL if behind a reverse proxy
+      - PLACEHOLDARR_SKIP_WEBHOOK_CHECK=false
+      - PLACEHOLDARR_WEBHOOK_URL=
+    volumes:
+      # Mount the full media root at the same absolute path as Radarr/Sonarr.
+      # Required for Option 3 so ROOT_FOLDER_SECTION_ID_MAPPINGS paths match webhook paths.
+      - ${{ sf:"media" }}:/media:shared
+      - ${{ sf:"cache" }}:/data
+      - ${{ sf:"appdata" }}/placeholdarr/dummy.mkv:/media/placeholdarr/dummy.mkv
+    ports:
+      - "8265:8265"
+    restart: unless-stopped
+    cpu_shares: 256
