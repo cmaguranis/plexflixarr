@@ -234,12 +234,22 @@ class SimklClient:
         logger.debug("Simkl genres request: GET %s", url)
         try:
             resp = requests.get(url, headers=self._headers, timeout=10)
-            resp.raise_for_status()
+            if resp.status_code == 429:
+                if self._rotate_key():
+                    # Retry with the new key
+                    resp = requests.get(url, headers=self._headers, timeout=10)
+                    resp.raise_for_status()
+                else:
+                    raise SimklRateLimitError("All Simkl API keys are rate limited")
+            else:
+                resp.raise_for_status()
             data = resp.json() or []
             if isinstance(data, dict):
                 # Some endpoints return sectioned results (e.g. top_last_aired, premieres)
                 data = [item for section in data.values() if isinstance(section, list) for item in section]
             return [model_cls.model_validate(item) for item in data if isinstance(item, dict)]
+        except SimklRateLimitError:
+            raise
         except Exception as exc:
             logger.warning("Simkl genres fetch failed (%s page=%d): %s", path, page, exc)
             return []

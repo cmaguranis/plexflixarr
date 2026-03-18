@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Sequence
 
-from src.clients.simkl_client.simkl_client import SimklClient
+from src.clients.simkl_client.simkl_client import SimklClient, SimklRateLimitError
 from src.clients.simkl_client.simkl_models import SimklItem, TvSort, YearFilter
 from src.config import Settings
 
@@ -39,7 +39,11 @@ def fetch_curated_lists(
     curated: dict[str, Sequence[SimklItem]] = {}
     for config_attr, fetcher in _CURATED_FETCHERS:
         name = getattr(config, config_attr)
-        items = fetcher(simkl, curated_max, sort, year)  # type: ignore[operator]
+        try:
+            items = fetcher(simkl, curated_max, sort, year)  # type: ignore[operator]
+        except SimklRateLimitError:
+            logger.warning("All Simkl API keys rate limited — skipping '%s'.", name)
+            continue
         logger.info("Fetched %d items for '%s'.", len(items), name)
         curated[name] = items
     return curated

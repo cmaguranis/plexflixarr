@@ -65,7 +65,12 @@ def sync_list_to_db(list_name: str, items: Sequence[SimklItem], db: SimklListDB,
 
     - Upserts all current items with updated order and list_name.
     - Removes membership for items previously in this list that are no longer present.
+    - Skips removal if the fetch returned 0 items (likely a failed fetch).
     """
+    if not items:
+        logger.warning("Empty fetch for '%s' — skipping sync to preserve existing data.", list_name)
+        return
+
     simkl_ids = [item.ids.simkl for item in items if item.ids.simkl is not None]
 
     existing = db.get_all_for_list(list_name)
