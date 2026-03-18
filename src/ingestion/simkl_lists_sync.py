@@ -2,7 +2,7 @@ import logging
 from collections.abc import Sequence
 
 from src.clients.simkl_client.simkl_client import SimklClient, SimklRateLimitError
-from src.clients.simkl_client.simkl_models import SimklItem, TrendingSize, TrendingTimeframe
+from src.clients.simkl_client.simkl_models import SimklIds, SimklItem
 from src.clients.tmdb_client import TmdbClient
 from src.clients.tvdb_client import TvdbClient
 from src.config import Settings
@@ -102,16 +102,6 @@ def run(config: Settings | None = None, curated_max: int = 100) -> None:
 
         simkl = SimklClient(config=config)
 
-        # --- Trending lists first (IDs already embedded in CDN JSON) ---
-        # trending_tv = simkl.fetch_trending_tv(TrendingTimeframe.WEEK, TrendingSize.TOP_100)
-        # trending_movies = simkl.fetch_trending_movies(TrendingTimeframe.WEEK, TrendingSize.TOP_100)
-        # trending_anime = simkl.fetch_trending_anime(TrendingTimeframe.WEEK, TrendingSize.TOP_100)
-
-        # sync_list_to_db(config.SIMKL_LIST_NAME_TRENDING_TV, trending_tv, db, media_type="tv")
-        # sync_list_to_db(config.SIMKL_LIST_NAME_TRENDING_MOVIES, trending_movies, db, media_type="movie")
-        # sync_list_to_db(config.SIMKL_LIST_NAME_TRENDING_ANIME, trending_anime, db, media_type="tv")
-
-        # --- Curated lists ---
         curated = fetch_curated_lists(simkl, config, curated_max)
         all_items = [item for items in curated.values() for item in items]
 
@@ -127,6 +117,33 @@ def run(config: Settings | None = None, curated_max: int = 100) -> None:
 
         for list_name, items in curated.items():
             sync_list_to_db(list_name, list(items), db)
+
+        # Backfill any DB items still missing TMDB/TVDB IDs
+        missing = db.get_items_missing_ids()
+        if missing:
+            logger.info("Backfilling IDs for %d items missing tmdb_id or tvdb_id.", len(missing))
+            backfill_items = [
+                SimklItem(
+                    title=row["title"],
+                    ids=SimklIds(simkl=row["simkl_id"], tmdb=row["tmdb_id"], tvdb=row["tvdb_id"]),
+                )
+                for row in missing
+            ]
+            _resolve_ids(backfill_items, config)
+            backfill_rows = [
+                {
+                    "simkl_id": item.ids.simkl,
+                    "tmdb_id": item.ids.tmdb,
+                    "tvdb_id": item.ids.tvdb,
+                    "title": item.title,
+                    "media_type": "tv",
+                }
+                for item in backfill_items
+                if item.ids.tmdb is not None or item.ids.tvdb is not None
+            ]
+            if backfill_rows:
+                db.upsert_items(backfill_rows)
+                logger.info("Backfilled IDs for %d items.", len(backfill_rows))
 
         logger.info("Simkl lists sync complete.")
     except Exception:

@@ -23,6 +23,7 @@ def get_list_items(name: str, config: Settings) -> list[dict]:
             "tmdb": str(row["tmdb_id"]) if row["tmdb_id"] else None,
         }
         for row in rows
+        if row["tvdb_id"] is not None
     ]
 
 

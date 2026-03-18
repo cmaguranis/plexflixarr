@@ -104,8 +104,8 @@ class SimklListDB:
                     VALUES
                         (:simkl_id, :tmdb_id, :tvdb_id, :title, :media_type, datetime('now'))
                     ON CONFLICT(simkl_id) DO UPDATE SET
-                        tmdb_id    = excluded.tmdb_id,
-                        tvdb_id    = excluded.tvdb_id,
+                        tmdb_id    = COALESCE(excluded.tmdb_id, simkl_list_items.tmdb_id),
+                        tvdb_id    = COALESCE(excluded.tvdb_id, simkl_list_items.tvdb_id),
                         title      = excluded.title,
                         media_type = excluded.media_type,
                         updated_at = excluded.updated_at
@@ -140,6 +140,18 @@ class SimklListDB:
     def query_by_list(self, list_name: str) -> list[sqlite3.Row]:
         """Return items for a list ordered by list_order (for /arr/list)."""
         return self.get_all_for_list(list_name)
+
+    def get_items_missing_ids(self) -> list[sqlite3.Row]:
+        """Return all items in at least one list that are missing tmdb_id or tvdb_id."""
+        with self._connect() as conn:
+            return conn.execute(
+                """
+                SELECT DISTINCT i.simkl_id, i.tmdb_id, i.tvdb_id, i.title, i.media_type
+                FROM simkl_list_items i
+                JOIN simkl_list_memberships m ON i.simkl_id = m.simkl_id
+                WHERE i.tmdb_id IS NULL OR i.tvdb_id IS NULL
+                """
+            ).fetchall()
 
     def list_names_with_counts(self) -> list[sqlite3.Row]:
         """Return each distinct list_name and its item count."""

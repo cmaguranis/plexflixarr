@@ -1,10 +1,13 @@
 import logging
+import time
 
 import tvdb_v4_official
 
 from src.config import Settings
 
 logger = logging.getLogger(__name__)
+
+_REQUEST_DELAY = 0.01  # 10ms between TVDB API calls
 
 
 class TvdbClient:
@@ -13,8 +16,11 @@ class TvdbClient:
 
     def search_tv_by_title(self, title: str, year: int | str | None = None) -> int | None:
         """Search TVDB for a series by title; return tvdb_id or None."""
+        time.sleep(_REQUEST_DELAY)
+        # TVDB API search fails on & even when URL-encoded; replace with space
+        query = title.replace("&", " ")
         try:
-            results = self._tvdb.search(title, type="series")
+            results = self._tvdb.search(query, type="series")
             if not results:
                 return None
             if year:
