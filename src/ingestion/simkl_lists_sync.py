@@ -103,12 +103,12 @@ def run(config: Settings | None = None, curated_max: int = 100) -> None:
         simkl = SimklClient(config=config)
 
         # --- Trending lists first (IDs already embedded in CDN JSON) ---
-        trending_tv = simkl.fetch_trending_tv(TrendingTimeframe.WEEK, TrendingSize.TOP_100)
-        trending_movies = simkl.fetch_trending_movies(TrendingTimeframe.WEEK, TrendingSize.TOP_100)
+        # trending_tv = simkl.fetch_trending_tv(TrendingTimeframe.WEEK, TrendingSize.TOP_100)
+        # trending_movies = simkl.fetch_trending_movies(TrendingTimeframe.WEEK, TrendingSize.TOP_100)
         # trending_anime = simkl.fetch_trending_anime(TrendingTimeframe.WEEK, TrendingSize.TOP_100)
 
-        sync_list_to_db(config.SIMKL_LIST_NAME_TRENDING_TV, trending_tv, db, media_type="tv")
-        sync_list_to_db(config.SIMKL_LIST_NAME_TRENDING_MOVIES, trending_movies, db, media_type="movie")
+        # sync_list_to_db(config.SIMKL_LIST_NAME_TRENDING_TV, trending_tv, db, media_type="tv")
+        # sync_list_to_db(config.SIMKL_LIST_NAME_TRENDING_MOVIES, trending_movies, db, media_type="movie")
         # sync_list_to_db(config.SIMKL_LIST_NAME_TRENDING_ANIME, trending_anime, db, media_type="tv")
 
         # --- Curated lists ---
