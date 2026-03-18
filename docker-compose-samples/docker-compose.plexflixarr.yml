@@ -7,26 +7,39 @@ services:
       - 8742:8742
     environment:
       - TZ=${{ tz }}
+
+      # Plex
       - PLEX_URL=http://192.168.1.67:32400
       - PLEX_TOKEN=
+
+      # TMDB
       - TMDB_API_KEY=
-      - TRAKT_CLIENT_ID=
-      - TRAKT_USERNAME=cmaguranis
-      # - ANILIST_USERNAME=cmaguranis
-      - ANILIST_RECS_PER_ENTRY=3
-      - TMDB_MIN_VOTE_AVERAGE=5.5
-      - TMDB_MIN_VOTE_COUNT=100
-      - DISCOVER_MOVIES_PATH=/data/discover_movies
-      - DISCOVER_SHOWS_PATH=/data/discover_shows
-      - 'REAL_MOVIES_LIBS=["Movies","Anime Movies"]'
-      - 'REAL_SHOWS_LIBS=["TV Shows","Anime TV"]'
-      - PAGES_PER_PROVIDER=5
-      - KOMETA_CONFIG_PATH=/kometa-config
-      - LOG_LEVEL=INFO
+
+      # TVDB
+      - TVDB_API_KEY=
+
+      # Simkl
+      - SIMKL_CLIENT_ID=
+      - SIMKL_FALLBACK_CLIENT_ID=
+
+      # Simkl list names (used as DB keys and Plex collection names)
+      # - SIMKL_LIST_NAME_KDRAMAS=K-Dramas
+      # - SIMKL_LIST_NAME_KREALITY=Korean Reality
+      # - SIMKL_LIST_NAME_REALITY=Reality TV
+      # - SIMKL_LIST_NAME_TRENDING_TV=Trending TV
+      # - SIMKL_LIST_NAME_TRENDING_MOVIES=Trending Movies
+      # - SIMKL_LIST_NAME_TRENDING_ANIME=Trending Anime
+
+      # Plex library section names
+      # - DISCOVER_MOVIES_LIB=Movies
+      # - DISCOVER_SHOWS_LIB=TV Shows
+      # - REAL_LIBS=[]
+
+      # Database path (must match volume mount below)
+      - SIMKL_LISTS_DB_FILE=/data/simkl_lists.db
     volumes:
       - ${{ sf:"media" }}:/media:shared
-      - ${{ sf:"cache" }}:/data:rshared
-      - ${{ sf:"appdata" }}/kometa:/kometa-config
+      - ${{ sf:"appdata" }}/plexflixarr:/data
     logging:
       driver: json-file
       options:

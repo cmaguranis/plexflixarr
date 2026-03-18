@@ -11,14 +11,9 @@ def config(tmp_path: Path) -> Settings:
     """Minimal Settings instance wired to a temp directory."""
     return Settings(
         TMDB_API_KEY="test-tmdb-key",
-        TRAKT_CLIENT_ID="test-trakt-id",
-        MDBLIST_API_KEY="test-mdblist-key",
         PLEX_URL="http://localhost:32400",
         PLEX_TOKEN="test-plex-token",
-        TEMPLATE_FILE=tmp_path / "dummy.mkv",
-        DISCOVER_MOVIES_PATH=tmp_path / "discover_movies",
-        DISCOVER_SHOWS_PATH=tmp_path / "discover_shows",
-        PAGES_PER_PROVIDER=1,
+        SIMKL_LISTS_DB_FILE=tmp_path / "simkl_lists.db",
     )
 
 

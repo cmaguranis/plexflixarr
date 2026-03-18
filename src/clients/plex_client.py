@@ -1,10 +1,13 @@
 import logging
 import time
+from collections import Counter
+from collections.abc import Sequence
 
 from plexapi.library import LibrarySection
 from plexapi.server import PlexServer
 from plexapi.video import Video
 
+from src.clients.simkl_client.simkl_models import SimklItem
 from src.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -41,21 +44,6 @@ class PlexClient:
     def get_section(self, name: str) -> LibrarySection:
         return self._server.library.section(name)
 
-    def ensure_library(self, name: str, lib_type: str, location: str) -> None:
-        """Create a Plex library section if it doesn't already exist."""
-        try:
-            self._server.library.section(name)
-            return  # already exists
-        except Exception:
-            pass
-        type_map = {
-            "movie": ("tv.plex.agents.movie", "Plex Movie"),
-            "show": ("tv.plex.agents.series", "Plex TV Series"),
-        }
-        agent, scanner = type_map[lib_type]
-        self._server.library.add(name=name, type=lib_type, agent=agent, scanner=scanner, location=location)
-        logger.info("Created Plex library '%s' at %s", name, location)
-
     def refresh_and_wait(self, *section_names: str, max_wait: int = 300, delay: int = 30) -> None:
         """Trigger a library scan on each section and block until all finish."""
         sections = [self.get_section(n) for n in section_names]
@@ -77,50 +65,9 @@ class PlexClient:
 
         logger.info("All library scans complete.")
 
-    def exists_in_any(self, section_names: list[str], title: str, libtype: str) -> bool:
-        """Return True if a title exists in any of the given library sections."""
-        plex_type = _plex_libtype(libtype)
-        for name in section_names:
-            try:
-                if self.get_section(name).search(title=title, libtype=plex_type):
-                    return True
-            except Exception as exc:
-                logger.warning("Could not search Plex library '%s': %s", name, exc)
-        return False
-
     def search(self, section_name: str, title: str, libtype: str) -> list[Video]:
         section = self.get_section(section_name)
         return section.search(title=title, libtype=_plex_libtype(libtype))
-
-    def find_by_tmdb_id(self, section_name: str, tmdb_id: int, libtype: str) -> list[Video]:
-        """Search a library section by TMDB ID via Plex guid matching."""
-        section = self.get_section(section_name)
-        return section.search(guid=f"tmdb://{tmdb_id}", libtype=_plex_libtype(libtype))
-
-    def find_by_anilist_id(self, section_name: str, anilist_id: int, libtype: str) -> list[Video]:
-        """Search a library section by AniList ID via Plex guid matching."""
-        section = self.get_section(section_name)
-        return section.search(guid=f"anilist://{anilist_id}", libtype=_plex_libtype(libtype))
-
-    def query_search(self, section_name: str, query: str, libtype: str) -> list[Video]:
-        """Fuzzy hub search scoped to a single library section."""
-        section = self.get_section(section_name)
-        plex_type = _plex_libtype(libtype)
-        results = self._server.search(query, mediatype=plex_type, limit=5)
-        return [r for r in results if getattr(r, "librarySectionID", None) == int(section.key)]
-
-    def add_labels(self, item: Video, labels: list[str]) -> None:
-        for label in labels:
-            item.addLabel(label)
-        logger.info("Labelled '%s' with %s", item.title, labels)
-
-    def delete_item(self, item: Video) -> None:
-        item.delete()
-        logger.info("Deleted Plex item: %s", item.title)
-
-    def empty_trash(self, section_name: str) -> None:
-        self.get_section(section_name).emptyTrash()
-        logger.info("Emptied trash for library: %s", section_name)
 
     def create_custom_ordered_collection(self, collection_name: str, items: list[int]) -> None:
         """Create a collection with items in a fixed custom sort order.
@@ -150,16 +97,71 @@ class PlexClient:
         except Exception:
             pass
 
-    def clear_collection(self, section_name: str, collection_name: str) -> None:
-        """Remove all items from an existing collection.
+    def create_curated_collections(
+        self,
+        config: Settings,
+        curated: dict[str, Sequence[SimklItem]],
+    ) -> None:
+        """Upsert ordered Plex collections for each curated Simkl list.
 
-        Args:
-            section_name: Library section that owns the collection.
-            collection_name: Title of the collection to empty.
+        Existing collections are deleted and recreated so the trending rank order
+        is always fresh. Each item is searched across all show libraries (Discover
+        and real) so the collection works whether an item is a dummy placeholder or
+        already owned content.
         """
-        section = self.get_section(section_name)
-        collection = section.collection(collection_name)
-        items = collection.items()
-        if items:
-            collection.removeItems(items)
-        logger.info("Cleared collection '%s'", collection_name)
+        all_sections = [config.DISCOVER_SHOWS_LIB, config.DISCOVER_MOVIES_LIB, *config.REAL_LIBS]
+
+        for collection_name, items in curated.items():
+            item_list = list(items)
+            logger.info("Building curated collection '%s' from %d Simkl items.", collection_name, len(item_list))
+
+            found: list[tuple] = []  # (plex_item, section_name)
+            for item in item_list:
+                if item.ids.tmdb is None:
+                    logger.info(
+                        "  '%s' → skipped (no TMDB ID) ids=%s", item.title, item.ids.model_dump(exclude_none=True)
+                    )
+                    continue
+                for section_name in all_sections:
+                    try:
+                        results = self.search(section_name, item.title, "show")
+                        if results:
+                            matched = results[0]
+                            logger.info(
+                                "  '%s' (tmdb=%s) → matched '%s' in '%s' (ratingKey=%s)",
+                                item.title,
+                                item.ids.tmdb,
+                                matched.title,
+                                section_name,
+                                matched.ratingKey,
+                            )
+                            found.append((matched, section_name))
+                            break
+                    except Exception:
+                        continue
+                else:
+                    logger.info("  '%s' (tmdb=%s) → not found in any library", item.title, item.ids.tmdb)
+
+            if not found:
+                logger.warning("No Plex items found for curated collection '%s' — skipping.", collection_name)
+                continue
+
+            # All items must be in the same section for a Plex collection.
+            # Use the section with the most matches (prefer DISCOVER_SHOWS_LIB on tie).
+            section_counts = Counter(section for _, section in found)
+            target_section = max(
+                section_counts,
+                key=lambda s: (section_counts[s], s == config.DISCOVER_SHOWS_LIB),
+            )
+            rating_keys = [plex_item.ratingKey for plex_item, section in found if section == target_section]
+
+            logger.info(
+                "Creating collection '%s' in '%s' with %d/%d items.",
+                collection_name,
+                target_section,
+                len(rating_keys),
+                len(item_list),
+            )
+            self.delete_collection_if_exists(target_section, collection_name)
+            self.create_custom_ordered_collection(collection_name, rating_keys)
+            logger.info("Upserted curated collection '%s'.", collection_name)
