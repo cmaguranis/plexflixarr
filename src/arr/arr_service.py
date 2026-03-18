@@ -23,7 +23,8 @@ def get_list_items(name: str, config: Settings) -> list[dict]:
             "tmdb": str(row["tmdb_id"]) if row["tmdb_id"] else None,
         }
         for row in rows
-        if row["tvdb_id"] is not None
+        if (row["media_type"] == "movie" and row["tmdb_id"] is not None)
+        or (row["media_type"] != "movie" and row["tvdb_id"] is not None)
     ]
 
 
@@ -35,6 +36,7 @@ def build_curated_collections(config: Settings) -> dict:
         config.SIMKL_LIST_NAME_KDRAMAS,
         config.SIMKL_LIST_NAME_KREALITY,
         config.SIMKL_LIST_NAME_REALITY,
+        config.SIMKL_LIST_NAME_KMOVIES,
     ]
 
     curated: dict[str, Sequence[SimklItem]] = {}
@@ -49,5 +51,6 @@ def build_curated_collections(config: Settings) -> dict:
         ]
 
     plex = PlexClient(config)
-    plex.create_curated_collections(config, curated)
+    movie_lists = {config.SIMKL_LIST_NAME_KMOVIES}
+    plex.create_curated_collections(config, curated, movie_lists=movie_lists)
     return {"status": "ok", "lists": {name: len(items) for name, items in curated.items()}}

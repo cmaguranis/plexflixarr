@@ -101,19 +101,28 @@ class PlexClient:
         self,
         config: Settings,
         curated: dict[str, Sequence[SimklItem]],
+        movie_lists: set[str] | None = None,
     ) -> None:
         """Upsert ordered Plex collections for each curated Simkl list.
 
         Existing collections are deleted and recreated so the trending rank order
-        is always fresh. Each item is searched across all show libraries (Discover
-        and real) so the collection works whether an item is a dummy placeholder or
-        already owned content.
+        is always fresh. Movie collections search only the movies library;
+        show collections search shows and real libraries.
         """
-        all_sections = [config.DISCOVER_SHOWS_LIB, config.DISCOVER_MOVIES_LIB, *config.REAL_LIBS]
+        movie_lists = movie_lists or set()
+        show_sections = [config.DISCOVER_SHOWS_LIB, *config.REAL_LIBS]
+        movie_sections = [config.DISCOVER_MOVIES_LIB, *config.REAL_LIBS]
 
         for collection_name, items in curated.items():
+            is_movie = collection_name in movie_lists
+            libtype = "movie" if is_movie else "show"
+            sections = movie_sections if is_movie else show_sections
+
             item_list = list(items)
-            logger.info("Building curated collection '%s' from %d Simkl items.", collection_name, len(item_list))
+            logger.info(
+                "Building curated collection '%s' (%s) from %d Simkl items.",
+                collection_name, libtype, len(item_list),
+            )
 
             found: list[tuple] = []  # (plex_item, section_name)
             for item in item_list:
@@ -122,9 +131,9 @@ class PlexClient:
                         "  '%s' → skipped (no TMDB ID) ids=%s", item.title, item.ids.model_dump(exclude_none=True)
                     )
                     continue
-                for section_name in all_sections:
+                for section_name in sections:
                     try:
-                        results = self.search(section_name, item.title, "show")
+                        results = self.search(section_name, item.title, libtype)
                         if results:
                             matched = results[0]
                             logger.info(
@@ -147,11 +156,11 @@ class PlexClient:
                 continue
 
             # All items must be in the same section for a Plex collection.
-            # Use the section with the most matches (prefer DISCOVER_SHOWS_LIB on tie).
+            preferred = config.DISCOVER_MOVIES_LIB if is_movie else config.DISCOVER_SHOWS_LIB
             section_counts = Counter(section for _, section in found)
             target_section = max(
                 section_counts,
-                key=lambda s: (section_counts[s], s == config.DISCOVER_SHOWS_LIB),
+                key=lambda s: (section_counts[s], s == preferred),
             )
             rating_keys = [plex_item.ratingKey for plex_item, section in found if section == target_section]
 

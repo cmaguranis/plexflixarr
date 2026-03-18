@@ -115,8 +115,10 @@ def run(config: Settings | None = None, curated_max: int = 100) -> None:
 
         _resolve_ids(all_items, config)
 
+        movie_lists = {config.SIMKL_LIST_NAME_KMOVIES}
         for list_name, items in curated.items():
-            sync_list_to_db(list_name, list(items), db)
+            media_type = "movie" if list_name in movie_lists else "tv"
+            sync_list_to_db(list_name, list(items), db, media_type=media_type)
 
         # Backfill any DB items still missing TMDB/TVDB IDs
         missing = db.get_items_missing_ids()

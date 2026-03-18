@@ -127,6 +127,17 @@ class SimklClient:
         logger.info(f"Fetching Korean reality using {path}")
         return self._fetch_genres_pages(path, SimklShow, max)
 
+    def fetch_korean_movies(
+        self,
+        max: int = 100,
+        sort: MovieSort = MovieSort.RANK,
+        year: YearFilter = YearFilter.THIS_YEAR,
+    ) -> list[SimklMovie]:
+        """Fetch popular Korean movies."""
+        path = f"/movies/genres/all/kr/{year}/{sort}/"
+        logger.info(f"Fetching Korean movies using {path}")
+        return self._fetch_genres_pages(path, SimklMovie, max)
+
     def fetch_trending_reality(
         self,
         max: int = 100,

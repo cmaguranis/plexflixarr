@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     SIMKL_LIST_NAME_KDRAMAS: str = "K-Dramas"
     SIMKL_LIST_NAME_KREALITY: str = "Korean Reality"
     SIMKL_LIST_NAME_REALITY: str = "Reality TV"
+    SIMKL_LIST_NAME_KMOVIES: str = "Korean Movies"
 
     # Simkl trending list names
     SIMKL_LIST_NAME_TRENDING_TV: str = "Trending TV"

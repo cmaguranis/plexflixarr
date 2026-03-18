@@ -21,6 +21,10 @@ _CURATED_FETCHERS: list[tuple[str, object]] = [
         "SIMKL_LIST_NAME_REALITY",
         lambda simkl, max, sort, year: simkl.fetch_trending_reality(max=max, sort=sort, year=year),
     ),
+    (
+        "SIMKL_LIST_NAME_KMOVIES",
+        lambda simkl, max, sort, year: simkl.fetch_korean_movies(max=max, year=year),
+    ),
 ]
 
 
