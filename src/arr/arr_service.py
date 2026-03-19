@@ -12,15 +12,27 @@ def get_list_names_with_counts(config: Settings) -> list[dict]:
     return [{"name": row["list_name"], "count": row["count"]} for row in db.list_names_with_counts()]
 
 
-def get_list_items(name: str, config: Settings) -> list[dict]:
+def get_list_items(name: str, config: Settings, service: str | None = None) -> list[dict]:
     db = SimklListDB(config.SIMKL_LISTS_DB_FILE)
     db.init_db()
     rows = db.query_by_list(name)
+    if service == "sonarr":
+        return [
+            {"Title": row["title"], "TvdbId": row["tvdb_id"]}
+            for row in rows
+            if row["tvdb_id"] is not None
+        ]
+    if service == "radarr":
+        return [
+            {"Title": row["title"], "TmdbId": row["tmdb_id"]}
+            for row in rows
+            if row["tmdb_id"] is not None
+        ]
     return [
         {
-            "title": row["title"],
-            "tvdbId": row["tvdb_id"],
-            "tmdb": str(row["tmdb_id"]) if row["tmdb_id"] else None,
+            "Title": row["title"],
+            "TvdbId": row["tvdb_id"],
+            "TmdbId": row["tmdb_id"] or 0,
         }
         for row in rows
         if (row["media_type"] == "movie" and row["tmdb_id"] is not None)

@@ -12,8 +12,8 @@ def get_lists() -> list[dict]:
 
 
 @router.get("/lists/{name}")
-def get_list(name: str, limit: int | None = None) -> list[dict]:
-    items = arr_service.get_list_items(name, Settings())
+def get_list(name: str, limit: int | None = None, service: str | None = None) -> list[dict]:
+    items = arr_service.get_list_items(name, Settings(), service=service)
     return items[:limit] if limit else items
 
 
